@@ -106,14 +106,10 @@ int main() {
                     if(Monbloc.DetectionBlocEnBas() || Monbloc.DetectionBlocEmpile()){   
 
                         int LigneTmp = 0;
+                        int lignes = Monbloc.ClearLines();
 
-                        while(Monbloc.checkLine()){
-                            Monbloc.SuppLine();
-                            LigneTmp++;
-                        }
-
-                        if(LigneTmp >= 1){
-                            Monbloc.ScoreAdd("Ligne", LigneTmp);
+                        if(lignes > 0){
+                            Monbloc.ScoreAdd("Ligne", lignes);
                         }
 
                         Monbloc.ResetBloc();

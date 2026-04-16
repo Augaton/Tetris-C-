@@ -27,7 +27,6 @@ class bloc{
         void assembly();
         void next();
         void mouvement(std::string NomMouv);
-        void SuppLine();
         void ScoreAdd(std::string TypePts, int Nbr);
         void drawASprite(sf::Sprite &Tile);
         void DessinerLeTableau();

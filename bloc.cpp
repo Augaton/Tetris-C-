@@ -188,6 +188,7 @@ void bloc::drawASprite(sf::Sprite &Tile){
     AddrWindow->draw(Tile);
 }
 
+
 void bloc::DessinerLeTableau(){
     for(int i = 0; i<20; i++){ 
         for(int j = 0; j<10; j++){
@@ -293,11 +294,11 @@ bool bloc::DetectionBlocEmpile(){
 void bloc::ResetBloc(){
     DejaSave = false;
     int LigneTmp =0;  
-        while(checkLine()){
-            SuppLine();
-            LigneTmp++;           
-        }
-    if(LigneTmp >= 1) ScoreAdd("Ligne", LigneTmp);
+    int lignes = Monbloc.ClearLines();
+
+    if(lignes > 0){
+        Monbloc.ScoreAdd("Ligne", lignes);
+    }
     
     const int* Y[] = {&PosTot.Y1, &PosTot.Y2, &PosTot.Y3, &PosTot.Y4};
     
@@ -334,20 +335,39 @@ bool bloc::Perdu(){
     return VPerdu;
 }
 
-void bloc::SuppLine(){
-    LigneDetruite++;
-    LigneDetruiteTot++;
+int bloc::ClearLines(){
+    int lines = 0;
 
-    for(int y = LigneComplete; y > 0; y--){
+    for(int y = 19; y >= 0; y--){
+        bool full = true;
+
         for(int x = 0; x < 10; x++){
-            map[y][x] = map[y-1][x];
+            if(map[y][x] == 0){
+                full = false;
+                break;
+            }
+        }
+
+        if(full){
+            lines++;
+
+            // descendre tout
+            for(int yy = y; yy > 0; yy--){
+                for(int x = 0; x < 10; x++){
+                    map[yy][x] = map[yy-1][x];
+                }
+            }
+
+            // vider top
+            for(int x = 0; x < 10; x++){
+                map[0][x] = 0;
+            }
+
+            y++; // recheck même ligne
         }
     }
 
-    // vider la ligne du haut
-    for(int x = 0; x < 10; x++){
-        map[0][x] = 0;
-    }
+    return lines;
 }
 
 void bloc::ScoreAdd(std::string TypePts, int Nbr){
