@@ -104,12 +104,18 @@ int main() {
                     Monbloc.mouvement("down");
 
                     if(Monbloc.DetectionBlocEnBas() || Monbloc.DetectionBlocEmpile()){   
-                        int LigneTmp =0;  
+
+                        int LigneTmp = 0;
+
                         while(Monbloc.checkLine()){
                             Monbloc.SuppLine();
-                            LigneTmp++;           
+                            LigneTmp++;
                         }
-                        if(LigneTmp >= 1) Monbloc.ScoreAdd("Ligne", LigneTmp);
+
+                        if(LigneTmp >= 1){
+                            Monbloc.ScoreAdd("Ligne", LigneTmp);
+                        }
+
                         Monbloc.ResetBloc();
                     }
 

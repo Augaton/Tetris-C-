@@ -129,19 +129,22 @@ void bloc::next(){
 
 
 bool bloc::checkLine(){
-
-    for(int i = 0; i<10; i++){
+    for(int y = 0; y < 20; y++){
         int compteur = 0;
-        for(int j = 0; j<20; j++){
-            if(map[i][j] > 0) compteur++;
-            if(map[i][j] == 0) break;
-            if(compteur == 10) {
-                LigneComplete = i;
-                return true;
+
+        for(int x = 0; x < 10; x++){
+            if(map[y][x] > 0){
+                compteur++;
+            } else {
+                break;
             }
         }
-    }      
 
+        if(compteur == 10){
+            LigneComplete = y;
+            return true;
+        }
+    }
     return false;
 }
 
@@ -332,32 +335,18 @@ bool bloc::Perdu(){
 }
 
 void bloc::SuppLine(){
-
     LigneDetruite++;
     LigneDetruiteTot++;
-    int LigneComplete = 0;
-    int mapAnnexe[20][10];
 
-    for (int i = 0; i < 20; i++){
-        for (int j = 0; j < 10; j++) mapAnnexe[i][j] = map[i][j];  
+    for(int y = LigneComplete; y > 0; y--){
+        for(int x = 0; x < 10; x++){
+            map[y][x] = map[y-1][x];
+        }
     }
 
-    for(int i = 0; i<20; i++){
-        int compteur = 0;
-        for(int j = 0; j<10; j++){
-            if(map[i][j] > 0) compteur++;
-            if(map[i][j] == 0) break;
-            if(compteur == 10){
-                LigneComplete = i;
-            }
-        }
-    } 
-
-
-    for(int i = LigneComplete; i>0; i--){
-        for (int j= 0; j < 10; j++){
-            map[i][j] = mapAnnexe[i-1][j];  
-        }       
+    // vider la ligne du haut
+    for(int x = 0; x < 10; x++){
+        map[0][x] = 0;
     }
 }
 
