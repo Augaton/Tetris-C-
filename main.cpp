@@ -208,7 +208,6 @@ int main() {
         }
         if(MenuOptions == 0){
             window.close();
-            Monbloc.~bloc();
             MonblocCopy = nullptr;
         }
     }    
