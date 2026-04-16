@@ -100,21 +100,17 @@ int main() {
             while(!MonblocCopy->Perdu()){            
 
                 if (gravityClock.getElapsedTime().asMilliseconds() > Monbloc.VitesseBloc()) {
-
-                    Monbloc.mouvement("down");
-
-                    if(Monbloc.DetectionBlocEnBas() || Monbloc.DetectionBlocEmpile()){   
-
-                        int LigneTmp = 0;
+                    
+                    if (!Monbloc.checkmove(0, 1)) { 
                         int lignes = Monbloc.ClearLines();
-
-                        if(lignes > 0){
+                        if (lignes > 0) {
                             Monbloc.ScoreAdd("Ligne", lignes);
                         }
-
                         Monbloc.ResetBloc();
+                    } else {
+                        Monbloc.mouvement("down");
                     }
-
+                    
                     gravityClock.restart();
                 }
 

@@ -284,10 +284,21 @@ bool bloc::DetectionBlocEnBas(){
 }
 
 bool bloc::DetectionBlocEmpile(){
-    if(map[PosTot.Y1+1][PosTot.X1] >= 1 && !( ((PosTot.Y2 == PosTot.Y1+1) && (PosTot.X2 == PosTot.X1)) || ((PosTot.Y1+1 == PosTot.Y3) && (PosTot.X1 == PosTot.X3)) || ((PosTot.Y1+1 == PosTot.Y4) && (PosTot.X1 == PosTot.X4)) ) ) return true;
-    if(map[PosTot.Y2+1][PosTot.X2] >= 1 && !( ((PosTot.Y2+1 == PosTot.Y1) && (PosTot.X2 == PosTot.X1)) || ((PosTot.Y2+1 == PosTot.Y3) && (PosTot.X2 == PosTot.X3)) || ((PosTot.Y2+1 == PosTot.Y4) && (PosTot.X2 == PosTot.X4)) ) ) return true;
-    if(map[PosTot.Y3+1][PosTot.X3] >= 1 && !( ((PosTot.Y3+1 == PosTot.Y1) && (PosTot.X3 == PosTot.X1)) || ((PosTot.Y3+1 == PosTot.Y2) && (PosTot.X3 == PosTot.X2)) || ((PosTot.Y3+1 == PosTot.Y4) && (PosTot.X3 == PosTot.X4)) ) ) return true;
-    if(map[PosTot.Y4+1][PosTot.X4] >= 1 && !( ((PosTot.Y4+1 == PosTot.Y1) && (PosTot.X4 == PosTot.X1)) || ((PosTot.Y4+1 == PosTot.Y3) && (PosTot.X4 == PosTot.X3)) || ((PosTot.Y4+1 == PosTot.Y2) && (PosTot.X4 == PosTot.X2)) ) ) return true;
+    const int* X[] = {&PosTot.X1, &PosTot.X2, &PosTot.X3, &PosTot.X4};
+    const int* Y[] = {&PosTot.Y1, &PosTot.Y2, &PosTot.Y3, &PosTot.Y4};
+    
+    for(int i = 0; i < 4; i++){
+        if(*Y[i] + 1 >= 20) return true;
+        if(map[*Y[i]+1][*X[i]] != 0){
+            bool isSelf = false;
+            for(int j = 0; j < 4; j++){
+                if(*X[i] == *X[j] && *Y[i]+1 == *Y[j]){
+                    isSelf = true; break;
+                }
+            }
+            if(!isSelf) return true;
+        }
+    }
     return false;
 }
 
