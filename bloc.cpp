@@ -516,10 +516,10 @@ void bloc::ChangerBloc(){
 
 void bloc::RemplacerBlocSave(){
     
-    map[PosTot.X1][PosTot.Y1] = 0;
-    map[PosTot.X2][PosTot.Y2] = 0;
-    map[PosTot.X3][PosTot.Y3] = 0;
-    map[PosTot.X4][PosTot.Y4] = 0;
+    map[PosTot.Y1][PosTot.X1] = 0;
+    map[PosTot.Y2][PosTot.X2] = 0;
+    map[PosTot.Y3][PosTot.X3] = 0;
+    map[PosTot.Y4][PosTot.X4] = 0;
     assembly();
 }
 
