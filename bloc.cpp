@@ -561,76 +561,25 @@ void bloc::AtterirEnBas(){
     
 }
 
-void bloc::VisualiserBloc(){
+void bloc::VisualiserBloc() {
+    sf::Sprite ghostSprite = Tiles; 
 
-    sf::Texture texture;
-    if (!texture.loadFromFile("asset/tiles.png")) {
-        EXIT_FAILURE;
-    }
-    sf::Sprite sprite;
-    sprite.setTexture(texture);
-    sprite.setTextureRect(sf::IntRect(18*CouleurAlea,0,18,18));
-    sprite.setColor(sf::Color(255, 255, 255, 128)); // Opacité à 50%
+    ghostSprite.setTextureRect(sf::IntRect(18 * CouleurAlea, 0, 18, 18));
+    ghostSprite.setColor(sf::Color(255, 255, 255, 100));
 
-
-
-    const int* X[] = {&PosTot.X1, &PosTot.X2, &PosTot.X3, &PosTot.X4};
-    const int* Y[] = {&PosTot.Y1, &PosTot.Y2, &PosTot.Y3, &PosTot.Y4};
-    int XPlusGrand= *X[0], XPlusPetit= *X[0], YPlusGrand= *Y[0];
-
-    for (int i = 0; i < 4; i++){
-        if(*X[i]>XPlusGrand) XPlusGrand = *X[i];
-    }
-    for (int i = 0; i < 4; i++){
-        if(*X[i]<XPlusPetit) XPlusPetit = *X[i];
-    }
-    
-    for (int i = 0; i < 4; i++){
-        if(*Y[i]>YPlusGrand){
-            YPlusGrand = *Y[i];
-        }
+    int offset = 0;
+    while (checkmove(0, offset + 1)) {
+        offset++;
     }
 
-    for(int i=YPlusGrand; i<20; i++){
+    int positionsX[] = {PosTot.X1, PosTot.X2, PosTot.X3, PosTot.X4};
+    int positionsY[] = {PosTot.Y1, PosTot.Y2, PosTot.Y3, PosTot.Y4};
 
-
-        int Y = i-YPlusGrand;
-        if(
-            (map[PosTot.Y1 + Y][PosTot.X1] == 0) &&
-            (map[PosTot.Y2 + Y][PosTot.X2] == 0) &&
-            (map[PosTot.Y3 + Y][PosTot.X3] == 0) &&
-            (map[PosTot.Y4 + Y][PosTot.X4] == 0)
-        && 
-            ((
-                (map[PosTot.Y1 + Y+1][PosTot.X1] >=1)||
-                (map[PosTot.Y2 + Y+1][PosTot.X2] >=1)||
-                (map[PosTot.Y3 + Y+1][PosTot.X3] >=1)||
-                (map[PosTot.Y4 + Y+1][PosTot.X4] >=1)
-            
-            )
-            || 
-                (i==19)
-            )
-
-        ){
-            sprite.setPosition(360+18*PosTot.X1,136+18*(PosTot.Y1+Y));
-            AddrWindow->draw(sprite);
-            sprite.setPosition(360+18*PosTot.X2,136+18*(PosTot.Y2+Y));
-            AddrWindow->draw(sprite);
-            sprite.setPosition(360+18*PosTot.X3,136+18*(PosTot.Y3+Y));
-            AddrWindow->draw(sprite);
-            sprite.setPosition(360+18*PosTot.X4,136+18*(PosTot.Y4+Y));
-            AddrWindow->draw(sprite);   
-            break;
-        }
-        
+    for (int i = 0; i < 4; i++) {
+        ghostSprite.setPosition(sf::Vector2f(TabY + 18 * positionsX[i], TabX + 18 * (positionsY[i] + offset)));
+        AddrWindow->draw(ghostSprite);
     }
-
-
-    
-    
 }
-
 
 int bloc::GetY(){
     return PosTot.Y1;
