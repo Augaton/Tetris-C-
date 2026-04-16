@@ -163,6 +163,11 @@ int main() {
                 window.clear(sf::Color(15, 15, 15));
                 window.draw(FondP);
 
+                sf::RectangleShape limiteLine(sf::Vector2f(180.f, 2.f));
+                limiteLine.setFillColor(sf::Color(255, 0, 0, 150));
+                limiteLine.setPosition(360.f, 208.f);
+                window.draw(limiteLine);
+
                 Monbloc.DessinerLeTableau();
                 Monbloc.next(); Monbloc.Saved();
                 window.draw(textNiveau); window.draw(textLignes); window.draw(textScore);
