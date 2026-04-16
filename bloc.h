@@ -16,10 +16,6 @@ class bloc{
         LesPos PosTot;
         bool VPerdu= false, DejaSave=false;
 
-        bool CheckLineLineRotateH(int (&Tab)[4][4]);
-        bool CheckLineLineRotateV(int (&Tab)[4][4]);
-        void SuppLineRotateH(int Tab[4][4]);
-        void SuppLineRotateV(int Tab[4][4]);
         void DeplacementGauche();
         void DeplacementDroite();
         void DeplacementBas();
@@ -58,6 +54,7 @@ class bloc{
 
 
         bool checkLine();
+        bool checkmove(int x, int y);
         bool DetectionBlocEnBas();
         bool Perdu();
         bool DetectionBlocEmpile();
