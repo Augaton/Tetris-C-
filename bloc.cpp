@@ -560,16 +560,19 @@ void bloc::Saved(){
 }
 
 void bloc::AtterirEnBas(){
-    
-    for (int i = 0; i < 20; i++){
-        if(!DetectionBlocEmpile()){
-            DeplacementBas();    
-            if (Niveau == 0) score += 2;
-            else score += Niveau*2;
-        }
+    while(checkmove(0, 1)){
+        DeplacementBas();
+        if (Niveau == 0) score += 2;
+        else score += Niveau * 2;
     }
+
+    // never check the clearline .. so i add it
+    int lignes = ClearLines();
+    if(lignes > 0){
+        ScoreAdd("Ligne", lignes);
+    }
+
     ResetBloc();
-    
 }
 
 void bloc::VisualiserBloc() {
