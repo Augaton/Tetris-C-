@@ -294,11 +294,6 @@ bool bloc::DetectionBlocEmpile(){
 void bloc::ResetBloc(){
     DejaSave = false;
     int LigneTmp =0;  
-    int lignes = Monbloc.ClearLines();
-
-    if(lignes > 0){
-        Monbloc.ScoreAdd("Ligne", lignes);
-    }
     
     const int* Y[] = {&PosTot.Y1, &PosTot.Y2, &PosTot.Y3, &PosTot.Y4};
     

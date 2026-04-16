@@ -50,7 +50,7 @@ class bloc{
 
 
         int GetY();
-
+        int ClearLines();
 
         bool checkLine();
         bool checkmove(int x, int y);
