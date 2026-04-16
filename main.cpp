@@ -16,21 +16,6 @@
 
 bloc* MonblocCopy;
 
-void Deplacement(){
-    do{
-        MonblocCopy->mouvement("down"); 
-        sf::sleep(sf::milliseconds(MonblocCopy->VitesseBloc()));   
-        if(MonblocCopy->DetectionBlocEnBas() || MonblocCopy->DetectionBlocEmpile()){   
-            int LigneTmp =0;  
-            while(MonblocCopy->checkLine()){
-                MonblocCopy->SuppLine();
-                LigneTmp++;           
-            }
-            if(LigneTmp >= 1) MonblocCopy->ScoreAdd("Ligne", LigneTmp);
-            MonblocCopy->ResetBloc();
-        }   
-    }while(!MonblocCopy->Perdu());   
-}
 
 void SetText(sf::Text &Text, sf::Font &font, int posX, int posY){
     Text.setFont(font);
@@ -57,7 +42,6 @@ int main() {
     window.setActive(true);
 
     window.setFramerateLimit(60);  
-    sf::Thread threadDeplacement(&Deplacement);
     sf::Texture TextTruc, TextWall,StatText, FondPrincipal;
 
     sf::RenderTexture renderTexture;
@@ -110,67 +94,64 @@ int main() {
         bloc Monbloc(TextTruc, &window, 360, 136 );        
         MonblocCopy = &Monbloc;
         Monbloc.BlocAleatoire(); Monbloc.CouleurAleatoire(); Monbloc.RegenererBloc();
-        bool ThreadLance = false, TouchePresse = false;
+        bool ThreadLance = false;
         while(MenuOptions == 1){
+            sf::Clock gravityClock;
             while(!MonblocCopy->Perdu()){            
 
-                if (ThreadLance == false){ 
-                    threadDeplacement.launch();
-                    ThreadLance = true;
-                }                   
-                
+                while (gravityClock.getElapsedTime().asMilliseconds() > Monbloc.VitesseBloc()) {
+
+                    Monbloc.mouvement("down");
+
+                    if(Monbloc.DetectionBlocEnBas() || Monbloc.DetectionBlocEmpile()){   
+                        int LigneTmp =0;  
+                        while(Monbloc.checkLine()){
+                            Monbloc.SuppLine();
+                            LigneTmp++;           
+                        }
+                        if(LigneTmp >= 1) Monbloc.ScoreAdd("Ligne", LigneTmp);
+                        Monbloc.ResetBloc();
+                    }
+
+                    gravityClock.restart();
+                }
+
                 while(window.pollEvent(event)) {
                     if (event.type == sf::Event::Closed) {
                         window.close();
                         break;
                     }
-                }
-                
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) {
-                    window.close();
-                    break;
-                }                
-                      
 
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right)){
-                    Monbloc.mouvement("right");
+                    if (event.type == sf::Event::KeyPressed) {
 
-                    Monbloc.VisualiserBloc();
-                }
-                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left)){
-                    Monbloc.mouvement("left");
+                        if(event.key.code == sf::Keyboard::Enter){
+                            Monbloc.RotationBloc();
+                        }
 
-                    Monbloc.VisualiserBloc();
-                }
-                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down)){
-                    if(!Monbloc.DetectionBlocEmpile()){
-                        Monbloc.mouvement("down");
-                        if(Monbloc.GetY() != ValeurY)  Monbloc.ScoreAdd("DescenteRapide", 0);
+                        if(event.key.code == sf::Keyboard::Right){
+                            Monbloc.mouvement("right");
+                        }
 
-                        Monbloc.VisualiserBloc();
+                        if(event.key.code == sf::Keyboard::Left){
+                            Monbloc.mouvement("left");
+                        }
+
+                        if(event.key.code == sf::Keyboard::Down){
+                            if(!Monbloc.DetectionBlocEmpile()){
+                                Monbloc.mouvement("down");
+                                Monbloc.ScoreAdd("DescenteRapide", 0);
+                            }
+                        }
+
+                        if(event.key.code == sf::Keyboard::Space){
+                            Monbloc.AtterirEnBas();
+                        }
+
+                        if(event.key.code == sf::Keyboard::RShift){
+                            Monbloc.ChangerBloc();
+                        }
                     }
                 }
-                else if(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::RShift)){
-                        Monbloc.ChangerBloc();
-
-                        Monbloc.VisualiserBloc();
-                }
-                else if(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Enter)){
-                    if(!TouchePresse){
-                        std::cout << "Rotation";
-                        Monbloc.RotationBloc();
-
-                        Monbloc.VisualiserBloc();
-                        TouchePresse=true;
-                    }
-                }
-                else if(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space)){
-                    if(!TouchePresse){
-                        Monbloc.AtterirEnBas();
-                        TouchePresse=true;
-                    }
-                }
-                else TouchePresse = false;
 
 
 
@@ -207,31 +188,8 @@ int main() {
                 textLignes.setOrigin(textBoundsLignes.left + textBoundsLignes.width / 2.0f, textBoundsLignes.top + textBoundsLignes.height / 2.0f);
                 textLignes.setPosition(centerXLigne, centerYLigne);
 
-
-
-                if(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::P)){   
-
-                    sf::Texture texture;
-                    texture.create(900, 540);  
-                    texture.update(window);       
-                    
-                    Menu.Pause(texture);  
-                    threadDeplacement.terminate(); 
-                    while (true){
-                        if(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::O)){
-                            threadDeplacement.launch();
-                            break;
-                        }
-                        sf::sleep(sf::milliseconds(100));
-                    }                            
-                }
-                sf::sleep(sf::milliseconds(150));    
-                ValeurY= Monbloc.GetY();     
             }
 
-
-            threadDeplacement.terminate();
-            Monbloc.~bloc();
             MonblocCopy = nullptr;
             
             sf::Texture textureFond;
@@ -242,7 +200,6 @@ int main() {
             if(ChoixMenuPerdu == 1){
                 if(window.isOpen()) window.close();
             }else{
-                threadDeplacement.terminate();
                 break;
             }
             
