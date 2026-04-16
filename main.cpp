@@ -99,7 +99,7 @@ int main() {
             sf::Clock gravityClock;
             while(!MonblocCopy->Perdu()){            
 
-                while (gravityClock.getElapsedTime().asMilliseconds() > Monbloc.VitesseBloc()) {
+                if (gravityClock.getElapsedTime().asMilliseconds() > Monbloc.VitesseBloc()) {
 
                     Monbloc.mouvement("down");
 
