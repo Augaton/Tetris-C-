@@ -194,7 +194,7 @@ void bloc::DessinerLeTableau(){
             if (map[i][j] >= 1) {
                 int Couleur = map[i][j];
                 Tiles.setTextureRect(sf::IntRect(18*Couleur,0,18,18));
-                Tiles.setPosition(sf::Vector2f(TabY+18*j,TabX+18*i));
+                Tiles.setPosition(sf::Vector2f(TabX + 18*j, TabY + 18*i));
                 DrawTiles();
             }
         }
