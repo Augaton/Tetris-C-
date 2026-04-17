@@ -57,6 +57,9 @@ int main() {
 
     sf::Text textScore,textNiveau,textNextPiece,textLignes,textCombo;
     SetText(textCombo, font, 0, 0);
+    textCombo.setFont(font);
+    textCombo.setCharacterSize(25);
+    textCombo.setStyle(sf::Text::Bold);
 
 
     if (!FondPrincipal.loadFromFile("asset/FondPrincipal.png")) { 
@@ -180,15 +183,11 @@ int main() {
                 int comboVal = Monbloc.AfficherCombo();
                 if(comboVal > 1){
                     textCombo.setString("COMBO x" + std::to_string(comboVal));
+                    textCombo.setOrigin(0, 0);  // ← plus de calcul d'origine qui peut foirer
+                    textCombo.setPosition(370.f, 155.f);  // ← juste au dessus de la grille, fixe
 
-                    // Centré sur la grille de jeu
-                    sf::FloatRect bounds = textCombo.getLocalBounds();
-                    textCombo.setOrigin(bounds.left + bounds.width / 2.f, bounds.top + bounds.height / 2.f);
-                    textCombo.setPosition(360.f + 90.f, 136.f + 20.f);  // au dessus de la grille
-
-                    // Couleur qui change selon le combo
-                    if(comboVal >= 5)       textCombo.setFillColor(sf::Color(255, 50, 50));   // rouge
-                    else if(comboVal >= 3)  textCombo.setFillColor(sf::Color(255, 165, 0));   // orange
+                    if(comboVal >= 5)       textCombo.setFillColor(sf::Color(255, 50, 50));
+                    else if(comboVal >= 3)  textCombo.setFillColor(sf::Color(255, 165, 0));
                     else                    textCombo.setFillColor(sf::Color::White);
 
                     window.draw(textCombo);
