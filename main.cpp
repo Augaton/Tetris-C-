@@ -55,7 +55,7 @@ int main() {
         EXIT_FAILURE;
     }
 
-    sf::Text textScore,textNiveau,textNextPiece,textLignes;
+    sf::Text textScore,textNiveau,textNextPiece,textLignes,textCombo;
 
 
     if (!FondPrincipal.loadFromFile("asset/FondPrincipal.png")) { 
@@ -101,18 +101,20 @@ int main() {
 
                 if (gravityClock.getElapsedTime().asMilliseconds() > Monbloc.VitesseBloc()) {
                     
-                    if(!Monbloc.checkmove(0, 1)){
-                        int lignes = Monbloc.ClearLines();
-                        if(lignes > 0){
-                            Monbloc.ScoreAdd("Ligne", lignes);
-                        }
-                        Monbloc.ResetBloc(); 
-                        gravityClock.restart();
+                if(!Monbloc.checkmove(0, 1)){
+                    int lignes = Monbloc.ClearLines();
+                    if(lignes > 0){
+                        Monbloc.ScoreAdd("Ligne", lignes);
                     } else {
-                        Monbloc.mouvement("down");
-                        gravityClock.restart();
+                        Monbloc.ResetCombo();  // aucune ligne = combo brisé
                     }
-                    
+                    Monbloc.ResetBloc();
+                    gravityClock.restart();
+                } else {
+                    Monbloc.mouvement("down");
+                    gravityClock.restart();
+                }
+                                    
                     gravityClock.restart();
                 }
 
@@ -193,6 +195,23 @@ int main() {
                 textLignes.setOrigin(textBoundsLignes.left + textBoundsLignes.width / 2.0f, textBoundsLignes.top + textBoundsLignes.height / 2.0f);
                 textLignes.setPosition(centerXLigne, centerYLigne);
 
+            }
+
+            int comboVal = Monbloc.AfficherCombo();
+            if(comboVal > 1){
+                textCombo.setString("COMBO x" + std::to_string(comboVal));
+
+                // Centré sur la grille de jeu
+                sf::FloatRect bounds = textCombo.getLocalBounds();
+                textCombo.setOrigin(bounds.left + bounds.width / 2.f, bounds.top + bounds.height / 2.f);
+                textCombo.setPosition(360.f + 90.f, 136.f + 20.f);  // au dessus de la grille
+
+                // Couleur qui change selon le combo
+                if(comboVal >= 5)       textCombo.setFillColor(sf::Color(255, 50, 50));   // rouge
+                else if(comboVal >= 3)  textCombo.setFillColor(sf::Color(255, 165, 0));   // orange
+                else                    textCombo.setFillColor(sf::Color::White);
+
+                window.draw(textCombo);
             }
 
             MonblocCopy = nullptr;

@@ -15,6 +15,7 @@ class bloc{
         };
         LesPos PosTot;
         bool VPerdu= false, DejaSave=false;
+        int combo = 0;
 
         void DeplacementGauche();
         void DeplacementDroite();
@@ -68,4 +69,7 @@ class bloc{
         inline std::string AfficherNiveau(){return std::to_string(Niveau);};
         inline std::string AfficherScore(){return std::to_string(score);};
         inline sf::Vector2f RevoyerPosition() {return Tiles.getPosition(); };
+
+        inline void ResetCombo(){ combo = 0; }
+        inline int AfficherCombo(){ return combo; }
 };

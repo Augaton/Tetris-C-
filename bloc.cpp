@@ -389,11 +389,14 @@ int bloc::ClearLines(){
 
 void bloc::ScoreAdd(std::string TypePts, int Nbr){
     if(TypePts == "Ligne"){
-        LigneDetruite += Nbr;        // Manque niveau
-        LigneDetruiteTot += Nbr;     // Manque ligne
+        LigneDetruite += Nbr; // Manque Niveaux
+        LigneDetruiteTot += Nbr; // Manque Ligne
+
+        combo++;  
 
         int PtsBase = Nbr * 100;
         int ScoreTmp = PtsBase + (100*(Nbr-1));
+        ScoreTmp += combo * 50; 
         score += ScoreTmp;
     }
     else if(TypePts == "DescenteRapide"){
@@ -571,8 +574,9 @@ void bloc::AtterirEnBas(){
     int lignes = ClearLines();
     if(lignes > 0){
         ScoreAdd("Ligne", lignes);
+    } else {
+        ResetCombo(); 
     }
-
     ResetBloc();
 }
 
