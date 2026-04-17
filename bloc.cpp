@@ -403,77 +403,68 @@ void bloc::ChangementNiveau(){
 }
 
 void bloc::RotationBloc(){
-    if(NbBloc == 6) return; // carré ne tourne pas duh
+    if(NbBloc == 6) return;
 
     int pivotX = PosTot.X2;
     int pivotY = PosTot.Y2;
 
-    int newX[4];
-    int newY[4];
-
     const int X[] = {PosTot.X1, PosTot.X2, PosTot.X3, PosTot.X4};
     const int Y[] = {PosTot.Y1, PosTot.Y2, PosTot.Y3, PosTot.Y4};
 
-    // Calcul rotation
+    int newX[4], newY[4];
     for(int i = 0; i < 4; i++){
         newX[i] = pivotX - (Y[i] - pivotY);
         newY[i] = pivotY + (X[i] - pivotX);
     }
 
-    // Vérification collision
-    for(int i = 0; i < 4; i++){
-        if(newX[i] < 0 || newX[i] >= 10 || newY[i] < 0 || newY[i] >= 20)
-            return;
+    const int kicksX[] = { 0, -1, 1, -2, 2,  0 };
+    const int kicksY[] = { 0,  0, 0,  0, 0, -1 };
 
-        if(map[newY[i]][newX[i]] != 0){
-            bool isSelf = false;
-            for(int j = 0; j < 4; j++){
-                if(newX[i] == X[j] && newY[i] == Y[j]){
-                    isSelf = true;
-                    break;
-                }
-            }
-            if(!isSelf) return;
-        }
-    }
-
-    // Efface ancien bloc
-    Ajouter(PosTot.X1,PosTot.Y1,0);
-    Ajouter(PosTot.X2,PosTot.Y2,0);
-    Ajouter(PosTot.X3,PosTot.Y3,0);
-    Ajouter(PosTot.X4,PosTot.Y4,0);
-
-    // Applique rotation
-    PosTot.X1 = newX[0]; PosTot.Y1 = newY[0];
-    PosTot.X2 = newX[1]; PosTot.Y2 = newY[1];
-    PosTot.X3 = newX[2]; PosTot.Y3 = newY[2];
-    PosTot.X4 = newX[3]; PosTot.Y4 = newY[3];
-
-    // Réécrit dans map
-    Ajouter(PosTot.X1,PosTot.Y1,CouleurAlea);
-    Ajouter(PosTot.X2,PosTot.Y2,CouleurAlea);
-    Ajouter(PosTot.X3,PosTot.Y3,CouleurAlea);
-    Ajouter(PosTot.X4,PosTot.Y4,CouleurAlea);
-
-
-    // rien de bien sorcier, un wallkick de base
-    for(int shift = -1; shift <= 1; shift++){
+    for(int k = 0; k < 6; k++){
         bool ok = true;
 
         for(int i = 0; i < 4; i++){
-            int testX = newX[i] + shift;
+            int testX = newX[i] + kicksX[k];
+            int testY = newY[i] + kicksY[k];
 
-            if(testX < 0 || testX >= 10){
+            if(testX < 0 || testX >= 10 || testY < 0 || testY >= 20){
                 ok = false;
                 break;
             }
+
+            if(map[testY][testX] != 0){
+                bool isSelf = false;
+                for(int j = 0; j < 4; j++){
+                    if(testX == X[j] && testY == Y[j]){
+                        isSelf = true;
+                        break;
+                    }
+                }
+                if(!isSelf){ ok = false; break; }
+            }
         }
 
+        // Amélioration du wallkick (envie de me défenestrée)
+
         if(ok){
-            for(int i = 0; i < 4; i++){
-                newX[i] += shift;
-            }
-            break;
+            // Efface ancien bloc
+            Ajouter(PosTot.X1, PosTot.Y1, 0);
+            Ajouter(PosTot.X2, PosTot.Y2, 0);
+            Ajouter(PosTot.X3, PosTot.Y3, 0);
+            Ajouter(PosTot.X4, PosTot.Y4, 0);
+
+            // Applique rotation + kick
+            PosTot.X1 = newX[0] + kicksX[k]; PosTot.Y1 = newY[0] + kicksY[k];
+            PosTot.X2 = newX[1] + kicksX[k]; PosTot.Y2 = newY[1] + kicksY[k];
+            PosTot.X3 = newX[2] + kicksX[k]; PosTot.Y3 = newY[2] + kicksY[k];
+            PosTot.X4 = newX[3] + kicksX[k]; PosTot.Y4 = newY[3] + kicksY[k];
+
+            // Réécrit dans map
+            Ajouter(PosTot.X1, PosTot.Y1, CouleurAlea);
+            Ajouter(PosTot.X2, PosTot.Y2, CouleurAlea);
+            Ajouter(PosTot.X3, PosTot.Y3, CouleurAlea);
+            Ajouter(PosTot.X4, PosTot.Y4, CouleurAlea);
+            return; // Nothing, rien, nada, niente, nichts, ничего, 아무것도, 没什么 (merci copilote pour toute les langues x) )
         }
     }
 }
