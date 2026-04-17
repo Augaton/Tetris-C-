@@ -181,10 +181,11 @@ int main() {
                 window.draw(textNiveau); window.draw(textLignes); window.draw(textScore);
 
                 int comboVal = Monbloc.AfficherCombo();
+                // std::cout << "combo : " << comboVal << std::endl; // DEBUG concluant
                 if(comboVal > 1){
                     textCombo.setString("COMBO x" + std::to_string(comboVal));
-                    textCombo.setOrigin(0, 0);  // ← plus de calcul d'origine qui peut foirer
-                    textCombo.setPosition(370.f, 155.f);  // ← juste au dessus de la grille, fixe
+                    textCombo.setOrigin(0, 0); 
+                    textCombo.setPosition(370.f, 155.f); 
 
                     if(comboVal >= 5)       textCombo.setFillColor(sf::Color(255, 50, 50));
                     else if(comboVal >= 3)  textCombo.setFillColor(sf::Color(255, 165, 0));
