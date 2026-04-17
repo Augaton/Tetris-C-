@@ -101,14 +101,16 @@ int main() {
 
                 if (gravityClock.getElapsedTime().asMilliseconds() > Monbloc.VitesseBloc()) {
                     
-                    if (!Monbloc.checkmove(0, 1)) { 
+                    if(!Monbloc.checkmove(0, 1)){
                         int lignes = Monbloc.ClearLines();
-                        if (lignes > 0) {
+                        if(lignes > 0){
                             Monbloc.ScoreAdd("Ligne", lignes);
                         }
-                        Monbloc.ResetBloc();
+                        Monbloc.ResetBloc(); 
+                        gravityClock.restart();
                     } else {
                         Monbloc.mouvement("down");
+                        gravityClock.restart();
                     }
                     
                     gravityClock.restart();

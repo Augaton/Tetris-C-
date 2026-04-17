@@ -304,21 +304,32 @@ bool bloc::DetectionBlocEmpile(){
 
 void bloc::ResetBloc(){
     DejaSave = false;
-    int LigneTmp =0;  
-    
+
     const int* Y[] = {&PosTot.Y1, &PosTot.Y2, &PosTot.Y3, &PosTot.Y4};
-    
-    for(int i = 0; i < 4 ; i++){
-        if(*Y[i] <= 3 ){
-            VPerdu = true;
-            return;
+
+    for(int i = 0; i < 4; i++){
+        if(*Y[i] <= 3){
+            int lignesSauvées = ClearLines();
+            if(lignesSauvées > 0){
+                ScoreAdd("Ligne", lignesSauvées);
+                bool encoreBloque = false;
+                for(int j = 0; j < 4; j++){
+                    if(*Y[j] <= 3 && map[*Y[j]][*( (int*[]){&PosTot.X1,&PosTot.X2,&PosTot.X3,&PosTot.X4}[j] )] != 0){
+                        encoreBloque = true;
+                        break;
+                    }
+                }
+                if(encoreBloque){ VPerdu = true; return; }
+            } else {
+                VPerdu = true;
+                return;
+            }
         }
     }
 
-    rotation =0;
+    rotation = 0;
     InitialiserPOS();
     RegenererBloc();
-    
 }
 
 void bloc::VoirLeTableau(){
@@ -378,25 +389,24 @@ int bloc::ClearLines(){
 
 void bloc::ScoreAdd(std::string TypePts, int Nbr){
     if(TypePts == "Ligne"){
-        int PtsBase = Nbr *100;
-        
+        LigneDetruite += Nbr;        // Manque niveau
+        LigneDetruiteTot += Nbr;     // Manque ligne
+
+        int PtsBase = Nbr * 100;
         int ScoreTmp = PtsBase + (100*(Nbr-1));
         score += ScoreTmp;
     }
-
     else if(TypePts == "DescenteRapide"){
-        
         score += (Niveau+1)*1;
     }
-
     else if(TypePts == "DescenteNow"){
         score += (Niveau+1)*2;
     }
 }
 
 void bloc::ChangementNiveau(){
-    if(Niveau == 29) return;
-    if((Niveau+1)*4 <= LigneDetruite){
+    if(Niveau >= 29) return;
+    if(LigneDetruite >= 10){ // 10 lignes = 1 niveau ?
         Niveau++;
         LigneDetruite = 0;
     }
@@ -599,9 +609,10 @@ void bloc::Recommencer(){
     Niveau = 0;
     ViderTableau();
 
-    BlocSaved = 0;
+    BlocSaved = 8;          // 8 = vide, pas 0 :( 
     CouleurSaved = 0;
-    NbBloc = 0; NbBlocSuivant=0; CouleurAleaSuivant=0; CouleurAlea =0;
+    NbBloc = 0; NbBlocSuivant = 0;
+    CouleurAleaSuivant = 0; CouleurAlea = 0;
 
     ResetBloc();
 }
