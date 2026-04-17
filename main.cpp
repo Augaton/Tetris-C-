@@ -56,6 +56,7 @@ int main() {
     }
 
     sf::Text textScore,textNiveau,textNextPiece,textLignes,textCombo;
+    SetText(textCombo, font, 0, 0);
 
 
     if (!FondPrincipal.loadFromFile("asset/FondPrincipal.png")) { 
