@@ -16,6 +16,8 @@ class bloc{
         LesPos PosTot;
         bool VPerdu= false, DejaSave=false;
         int combo = 0;
+        sf::Clock comboClock;
+        float comboTimeLimit = 2.0f;
 
         void DeplacementGauche();
         void DeplacementDroite();
@@ -70,6 +72,11 @@ class bloc{
         inline std::string AfficherScore(){return std::to_string(score);};
         inline sf::Vector2f RevoyerPosition() {return Tiles.getPosition(); };
 
-        inline void ResetCombo(){ combo = 0; }
+        void UpdateCombo();
         inline int AfficherCombo(){ return combo; }
+        inline bool ComboActif(){ return comboClock.getElapsedTime().asSeconds() < comboTimeLimit; }
+        inline float TempsRestantCombo(){ 
+            return comboTimeLimit - comboClock.getElapsedTime().asSeconds(); 
+        }
+        inline float GetComboTimeLimit(){ return comboTimeLimit; }
 };

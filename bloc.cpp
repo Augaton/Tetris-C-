@@ -387,16 +387,23 @@ int bloc::ClearLines(){
     return lines;
 }
 
+void bloc::UpdateCombo(){
+    if(combo > 0 && comboClock.getElapsedTime().asSeconds() > comboTimeLimit){
+        combo = 0;
+    }
+}
+
 void bloc::ScoreAdd(std::string TypePts, int Nbr){
     if(TypePts == "Ligne"){
-        LigneDetruite += Nbr; // Manque Niveaux
-        LigneDetruiteTot += Nbr; // Manque Ligne
+        LigneDetruite += Nbr;
+        LigneDetruiteTot += Nbr;
 
-        combo++;  
+        combo++;
+        comboClock.restart();
 
         int PtsBase = Nbr * 100;
         int ScoreTmp = PtsBase + (100*(Nbr-1));
-        ScoreTmp += combo * 50; 
+        ScoreTmp += combo * 50;
         score += ScoreTmp;
     }
     else if(TypePts == "DescenteRapide"){
@@ -574,8 +581,6 @@ void bloc::AtterirEnBas(){
     int lignes = ClearLines();
     if(lignes > 0){
         ScoreAdd("Ligne", lignes);
-    } else {
-        ResetCombo(); 
     }
     ResetBloc();
 }

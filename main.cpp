@@ -4,8 +4,7 @@
 #define SFML_STATIC
 #endif
 #include <SFML/Graphics.hpp>
-
-
+#include <cmath>
 #include <iostream>
 #include <codecvt>
 
@@ -109,8 +108,6 @@ int main() {
                     int lignes = Monbloc.ClearLines();
                     if(lignes > 0){
                         Monbloc.ScoreAdd("Ligne", lignes);
-                    } else {
-                        Monbloc.ResetCombo();  // aucune ligne = combo brisé
                     }
                     Monbloc.ResetBloc();
                     gravityClock.restart();
@@ -180,18 +177,89 @@ int main() {
                 Monbloc.next(); Monbloc.Saved();
                 window.draw(textNiveau); window.draw(textLignes); window.draw(textScore);
 
-                int comboVal = Monbloc.AfficherCombo();
-                // std::cout << "combo : " << comboVal << std::endl; // DEBUG concluant
-                if(comboVal > 1){
-                    textCombo.setString("COMBO x" + std::to_string(comboVal));
-                    textCombo.setOrigin(0, 0); 
-                    textCombo.setPosition(370.f, 155.f); 
+                textCombo.setOutlineThickness(2.0f);
+                textCombo.setOutlineColor(sf::Color::Black);
 
-                    if(comboVal >= 5)       textCombo.setFillColor(sf::Color(255, 50, 50));
-                    else if(comboVal >= 3)  textCombo.setFillColor(sf::Color(255, 165, 0));
-                    else                    textCombo.setFillColor(sf::Color::White);
+                Monbloc.UpdateCombo();
+                int comboVal = Monbloc.AfficherCombo();
+
+                if(comboVal > 0) {
+                    textCombo.setString("COMBO X" + std::to_string(comboVal));
+                    
+                    float time = gravityClock.getElapsedTime().asSeconds();
+                    float scale = 1.0f + std::sin(time * 10.0f) * 0.1f; 
+                    textCombo.setScale(scale, scale);
+                    textCombo.setRotation(-5.0f);
+
+                    sf::Color color;
+                    if(comboVal >= 8)      color = sf::Color(255, 0, 255); // Violet (Elite)
+                    else if(comboVal >= 5) color = sf::Color(255, 50, 50);  // Rouge (Chaud)
+                    else if(comboVal >= 3) color = sf::Color(255, 165, 0); // Orange
+                    else                   color = sf::Color::Cyan;        // Départ
+
+                    textCombo.setFillColor(color);
+
+                    sf::FloatRect cbounds = textCombo.getLocalBounds();
+                    textCombo.setOrigin(cbounds.width / 2.0f, cbounds.height / 2.0f);
+                    textCombo.setPosition(450.f, 155.f); 
 
                     window.draw(textCombo);
+
+
+                    float tempsRestant = Monbloc.TempsRestantCombo();
+                    float ratio = std::max(0.f, std::min(1.f, tempsRestant / Monbloc.GetComboTimeLimit()));
+                    
+                    float barWidth = 140.f;
+                    float barHeight = 8.f;
+                    float rotationAngle = -5.0f;
+                    sf::Vector2f barPos(450.f, 185.f); // Position centrale sous le texte
+
+                    // 1. LE FOND (Contour + Arrière-plan sombre)
+                    sf::RectangleShape barFond(sf::Vector2f(barWidth, barHeight));
+                    barFond.setOrigin(barWidth / 2.f, barHeight / 2.f);
+                    barFond.setPosition(barPos);
+                    barFond.setRotation(rotationAngle);
+                    barFond.setFillColor(sf::Color(0, 0, 0, 150));
+                    barFond.setOutlineThickness(1.5f);
+                    barFond.setOutlineColor(sf::Color(255, 255, 255, 80)); // Petit liseré gris/blanc
+                    window.draw(barFond);
+
+                    // 2. LE REMPLISSAGE (La partie qui diminue)
+                    if (ratio > 0.01f) {
+                        sf::RectangleShape barFill(sf::Vector2f(barWidth * ratio, barHeight));
+                        
+                        // ASTUCE : L'origine à gauche permet de faire diminuer la barre vers la gauche facilement
+                        barFill.setOrigin(0.f, barHeight / 2.f); 
+                        
+                        // On calcule la position de départ (le bord gauche de la barre inclinée)
+                        // Pour simplifier, on garde l'origine au centre du fond et on décale le Fill
+                        barFill.setRotation(rotationAngle);
+                        
+                        // Calcul du décalage pour que le bord gauche du "Fill" s'aligne avec le bord gauche du "Fond"
+                        // On recule de la moitié de la largeur totale
+                        float rad = rotationAngle * 3.14159f / 180.f;
+                        float offsetX = (barWidth / 2.f) * std::cos(rad);
+                        float offsetY = (barWidth / 2.f) * std::sin(rad);
+                        
+                        barFill.setPosition(barPos.x - offsetX, barPos.y - offsetY);
+
+                        // Couleur dynamique (Dégradé visuel)
+                        sf::Color fillCol;
+                        if(ratio > 0.5f)      fillCol = sf::Color(0, 255, 150); // Vert Emeraude
+                        else if(ratio > 0.2f) fillCol = sf::Color(255, 200, 0); // Jaune/Orange
+                        else                  fillCol = sf::Color(255, 50, 50);  // Rouge flash
+
+                        barFill.setFillColor(fillCol);
+                        window.draw(barFill);
+
+                        // 3. PETIT EFFET DE BRILLANCE (Glossy effect)
+                        sf::RectangleShape barShine(sf::Vector2f(barWidth * ratio, barHeight / 2.f));
+                        barShine.setOrigin(0.f, barHeight / 4.f);
+                        barShine.setPosition(barPos.x - offsetX, barPos.y - offsetY);
+                        barShine.setRotation(rotationAngle);
+                        barShine.setFillColor(sf::Color(255, 255, 255, 50));
+                        window.draw(barShine);
+                    }
                 }
                 
                 Monbloc.VisualiserBloc();
