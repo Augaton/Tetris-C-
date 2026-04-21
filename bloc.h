@@ -17,7 +17,7 @@ class bloc{
         bool VPerdu= false, DejaSave=false;
         int combo = 0;
         sf::Clock comboClock;
-        float comboTimeLimit = 2.0f;
+        float comboTimeLimit = 4.0f;
 
         void DeplacementGauche();
         void DeplacementDroite();
