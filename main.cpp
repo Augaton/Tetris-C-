@@ -6,301 +6,232 @@
 #include <SFML/Graphics.hpp>
 #include <cmath>
 #include <iostream>
-#include <codecvt>
 
+// Helper
 
-
-
-
-
-bloc* MonblocCopy;
-
-
-void SetText(sf::Text &Text, sf::Font &font, int posX, int posY){
-    Text.setFont(font);
-    Text.setCharacterSize(20);
-    Text.setPosition(sf::Vector2f(posX,posY));
-    Text.setFillColor(sf::Color::White);
-    Text.setStyle(sf::Text::Bold);
+void SetText(sf::Text& text, sf::Font& font, int x, int y, int size = 20) {
+    text.setFont(font);
+    text.setCharacterSize(size);
+    text.setPosition(sf::Vector2f(x, y));
+    text.setFillColor(sf::Color::White);
+    text.setStyle(sf::Text::Bold);
 }
 
-
-
-void DefinirText(std::string text, sf::Text &Label, sf::Font &Font, int x, int y){
-
-    SetText(Label, Font, x, y);
-    Label.setString(text);
-    Label.setCharacterSize(15);
-
-    return;
+void CentrerTexte(sf::Text& text, float cx, float cy) {
+    sf::FloatRect b = text.getLocalBounds();
+    text.setOrigin(b.left + b.width / 2.f, b.top + b.height / 2.f);
+    text.setPosition(cx, cy);
 }
 
+// Combo graphics
+
+void DrawCombo(sf::RenderWindow& window, sf::Text& textCombo, bloc& Monbloc, float time) {
+    int comboVal = Monbloc.AfficherCombo();
+    if (comboVal <= 0) return;
+
+    // Texte du combo
+    textCombo.setString("COMBO X" + std::to_string(comboVal));
+    textCombo.setOutlineThickness(2.f);
+    textCombo.setOutlineColor(sf::Color::Black);
+    textCombo.setRotation(-5.f);
+
+    float scale = 1.f + std::sin(time * 10.f) * 0.1f;
+    textCombo.setScale(scale, scale);
+
+    sf::Color color;
+    if      (comboVal >= 8) color = sf::Color(255,   0, 255);
+    else if (comboVal >= 5) color = sf::Color(255,  50,  50);
+    else if (comboVal >= 3) color = sf::Color(255, 165,   0);
+    else                    color = sf::Color::Cyan;
+    textCombo.setFillColor(color);
+
+    sf::FloatRect cb = textCombo.getLocalBounds();
+    textCombo.setOrigin(cb.width / 2.f, cb.height / 2.f);
+    textCombo.setPosition(450.f, 150.f);
+    window.draw(textCombo);
+
+    // Barre de temps (pour combo)
+    float ratio = std::max(0.f, std::min(1.f,
+        Monbloc.TempsRestantCombo() / Monbloc.GetComboTimeLimit()));
+
+    const float barW     = 140.f;
+    const float barH     = 8.f;
+    const float angle    = -5.f;
+    const float rad      = angle * 3.14159f / 180.f;
+    const sf::Vector2f center(450.f, 178.f);
+
+    // Fond
+    sf::RectangleShape fond(sf::Vector2f(barW, barH));
+    fond.setOrigin(barW / 2.f, barH / 2.f);
+    fond.setPosition(center);
+    fond.setRotation(angle);
+    fond.setFillColor(sf::Color(0, 0, 0, 150));
+    fond.setOutlineThickness(1.5f);
+    fond.setOutlineColor(sf::Color(255, 255, 255, 80));
+    window.draw(fond);
+
+    if (ratio > 0.01f) {
+        // Point de départ du bord gauche
+        float ox = (barW / 2.f) * std::cos(rad);
+        float oy = (barW / 2.f) * std::sin(rad);
+        sf::Vector2f left(center.x - ox, center.y - oy);
+
+        // Couleur
+        sf::Color fillCol;
+        if      (ratio > 0.5f) fillCol = sf::Color(  0, 255, 150);
+        else if (ratio > 0.2f) fillCol = sf::Color(255, 200,   0);
+        else                   fillCol = sf::Color(255,  50,  50);
+
+        // Remplissage
+        sf::RectangleShape fill(sf::Vector2f(barW * ratio, barH));
+        fill.setOrigin(0.f, barH / 2.f);
+        fill.setPosition(left);
+        fill.setRotation(angle);
+        fill.setFillColor(fillCol);
+        window.draw(fill);
+
+        // Brillance
+        sf::RectangleShape shine(sf::Vector2f(barW * ratio, barH / 2.f));
+        shine.setOrigin(0.f, barH / 4.f);
+        shine.setPosition(left);
+        shine.setRotation(angle);
+        shine.setFillColor(sf::Color(255, 255, 255, 50));
+        window.draw(shine);
+    }
+}
+
+// Rendu du jeu (grille, pièces, textes)
+
+void DrawGame(sf::RenderWindow& window, bloc& Monbloc, sf::Sprite& fond,
+              sf::Text& textScore, sf::Text& textNiveau, sf::Text& textLignes,
+              sf::Text& textCombo, float time)
+{
+    window.clear(sf::Color(15, 15, 15));
+    window.draw(fond);
+
+    // Ligne limite rouge
+    sf::RectangleShape limiteLine(sf::Vector2f(180.f, 2.f));
+    limiteLine.setFillColor(sf::Color(255, 0, 0, 150));
+    limiteLine.setPosition(360.f, 208.f);
+    window.draw(limiteLine);
+
+    // Grille + pièces UI
+    Monbloc.DessinerLeTableau();
+    Monbloc.next();
+    Monbloc.Saved();
+    Monbloc.VisualiserBloc();
+
+    // Textes stats 
+    textScore.setString(Monbloc.AfficherScore());
+    CentrerTexte(textScore, (650.f + 827.f) / 2.f, 282.f);
+
+    textNiveau.setString(Monbloc.AfficherNiveau());
+    CentrerTexte(textNiveau, (66.f + 246.f) / 2.f, 470.f);
+
+    textLignes.setString(Monbloc.AfficherLigneDetruite());
+    CentrerTexte(textLignes, (66.f + 246.f) / 2.f, 345.f);
+
+    window.draw(textScore);
+    window.draw(textNiveau);
+    window.draw(textLignes);
+
+    // Combo
+    Monbloc.UpdateCombo();
+    DrawCombo(window, textCombo, Monbloc, time);
+
+    window.display();
+}
 
 int main() {
     sf::RenderWindow window(sf::VideoMode(900, 540), "Tetris game");
-    window.setActive(true);
+    window.setFramerateLimit(60);
 
-    window.setFramerateLimit(60);  
-    sf::Texture TextTruc, TextWall,StatText, FondPrincipal;
-
-    sf::RenderTexture renderTexture;
-    if (!renderTexture.create(900, 540)) {
-        std::cerr << "Impossible de créer la RenderTexture" << std::endl;
-        return -1;
-    }
     sf::Font font;
+    if (!font.loadFromFile("asset/arial.ttf")) return EXIT_FAILURE;
 
-    if (!font.loadFromFile("asset/arial.ttf")) {
-        EXIT_FAILURE;
-    }
+    sf::Texture TextTruc, FondPrincipal;
+    if (!TextTruc.loadFromFile("asset/tiles.png"))        return EXIT_FAILURE;
+    if (!FondPrincipal.loadFromFile("asset/FondPrincipal.png")) return EXIT_FAILURE;
 
-    sf::Text textScore,textNiveau,textNextPiece,textLignes,textCombo;
-    SetText(textCombo, font, 0, 0);
-    textCombo.setFont(font);
-    textCombo.setCharacterSize(25);
-    textCombo.setStyle(sf::Text::Bold);
+    sf::Sprite FondP(FondPrincipal);
 
-
-    if (!FondPrincipal.loadFromFile("asset/FondPrincipal.png")) { 
-        std::cerr << "Erreur : Im345possible de charger l'image.\n";
-        return -1;
-    }
-
-    
-    sf::Sprite SpStat(StatText), FondP(FondPrincipal);
-
-    SpStat.setScale(0.65f, 0.65f);
-    SpStat.setPosition(100, 200);
-
-    FondP.setPosition(0,0);
-
-    DefinirText("Prochaine piece : ", textNextPiece, font, 582, 70);
-    
-    SetText(textScore, font, 180, 335);
-    SetText(textNiveau, font, 110, 240);
-    SetText(textLignes, font, 180, 400);
-
-
-    if (!TextTruc.loadFromFile("asset/tiles.png")){
-        return EXIT_FAILURE;
-    }
-   
-    int ValeurY=0;
+    sf::Text textScore, textNiveau, textLignes, textCombo, textNextPiece;
+    SetText(textScore,     font, 0, 0);
+    SetText(textNiveau,    font, 0, 0);
+    SetText(textLignes,    font, 0, 0);
+    SetText(textCombo,     font, 0, 0, 25);
+    SetText(textNextPiece, font, 582, 70, 15);
+    textNextPiece.setString("Prochaine piece : ");
 
     menu Menu(window, font);
-    window.clear();
-
     int MenuOptions = Menu.MenuJeu();
-    while(window.isOpen()){
-        MonblocCopy = nullptr;
-        sf::Event event;
-        bloc Monbloc(TextTruc, &window, 360, 136 );        
-        MonblocCopy = &Monbloc;
-        Monbloc.BlocAleatoire(); Monbloc.CouleurAleatoire(); Monbloc.RegenererBloc();
-        bool ThreadLance = false;
-        while(MenuOptions == 1){
-            sf::Clock gravityClock;
-            while(!MonblocCopy->Perdu()){            
 
-                if (gravityClock.getElapsedTime().asMilliseconds() > Monbloc.VitesseBloc()) {
-                    
-                if(!Monbloc.checkmove(0, 1)){
+    // Boucle principale
+    while (window.isOpen()) {
+        bloc Monbloc(TextTruc, &window, 360, 136);
+        Monbloc.BlocAleatoire();
+        Monbloc.CouleurAleatoire();
+        Monbloc.RegenererBloc();
+
+        if (MenuOptions == 0) { window.close(); break; }
+
+        sf::Clock gravityClock;
+        sf::Clock frameClock;
+
+        // Boucle de jeu
+        while (!Monbloc.Perdu() && window.isOpen()) {
+
+            // Gravité
+            if (gravityClock.getElapsedTime().asMilliseconds() > Monbloc.VitesseBloc()) {
+                if (!Monbloc.checkmove(0, 1)) {
                     int lignes = Monbloc.ClearLines();
-                    if(lignes > 0){
-                        Monbloc.ScoreAdd("Ligne", lignes);
-                    }
+                    if (lignes > 0) Monbloc.ScoreAdd("Ligne", lignes);
                     Monbloc.ResetBloc();
-                    gravityClock.restart();
                 } else {
                     Monbloc.mouvement("down");
-                    gravityClock.restart();
                 }
-                                    
-                    gravityClock.restart();
-                }
+                gravityClock.restart();
+            }
 
-                while(window.pollEvent(event)) {
-                    if (event.type == sf::Event::Closed) {
-                        window.close();
-                        break;
-                    }
+            // Événements
+            sf::Event event;
+            while (window.pollEvent(event)) {
+                if (event.type == sf::Event::Closed) { window.close(); break; }
 
-                    if (event.type == sf::Event::KeyPressed) {
-
-                        if(event.key.code == sf::Keyboard::Enter){
-                            Monbloc.RotationBloc();
-                        }
-
-                        if(event.key.code == sf::Keyboard::Right){
-                            Monbloc.mouvement("right");
-                        }
-
-                        if(event.key.code == sf::Keyboard::Left){
-                            Monbloc.mouvement("left");
-                        }
-
-                        if(event.key.code == sf::Keyboard::Down){
-                            if(!Monbloc.DetectionBlocEmpile()){
+                if (event.type == sf::Event::KeyPressed) {
+                    switch (event.key.code) {
+                        case sf::Keyboard::Enter:  Monbloc.RotationBloc();             break;
+                        case sf::Keyboard::Right:  Monbloc.mouvement("right");         break;
+                        case sf::Keyboard::Left:   Monbloc.mouvement("left");          break;
+                        case sf::Keyboard::Space:  Monbloc.AtterirEnBas();             break;
+                        case sf::Keyboard::RShift: Monbloc.ChangerBloc();              break;
+                        case sf::Keyboard::Down:
+                            if (!Monbloc.DetectionBlocEmpile()) {
                                 Monbloc.mouvement("down");
                                 Monbloc.ScoreAdd("DescenteRapide", 0);
                             }
-                        }
-
-                        if(event.key.code == sf::Keyboard::Space){
-                            Monbloc.AtterirEnBas();
-                        }
-
-                        if(event.key.code == sf::Keyboard::RShift){
-                            Monbloc.ChangerBloc();
-                        }
+                            break;
+                        default: break;
                     }
                 }
-
-
-
-
-
-                renderTexture.clear();
-                Monbloc.ChangementNiveau();
-                textScore.setString(Monbloc.AfficherScore());
-                textNiveau.setString(Monbloc.AfficherNiveau());
-                textLignes.setString(Monbloc.AfficherLigneDetruite());
-                window.clear(sf::Color(15, 15, 15));
-                window.draw(FondP);
-
-                sf::RectangleShape limiteLine(sf::Vector2f(180.f, 2.f));
-                limiteLine.setFillColor(sf::Color(255, 0, 0, 150));
-                limiteLine.setPosition(360.f, 208.f);
-                window.draw(limiteLine);
-
-                Monbloc.DessinerLeTableau();
-                Monbloc.next(); Monbloc.Saved();
-                window.draw(textNiveau); window.draw(textLignes); window.draw(textScore);
-
-                textCombo.setOutlineThickness(2.0f);
-                textCombo.setOutlineColor(sf::Color::Black);
-
-                Monbloc.UpdateCombo();
-                int comboVal = Monbloc.AfficherCombo();
-
-                if(comboVal > 0) {
-                    textCombo.setString("COMBO X" + std::to_string(comboVal));
-                    
-                    float time = gravityClock.getElapsedTime().asSeconds();
-                    float scale = 1.0f + std::sin(time * 10.0f) * 0.1f; 
-                    textCombo.setScale(scale, scale);
-                    textCombo.setRotation(-5.0f);
-
-                    sf::Color color;
-                    if(comboVal >= 8)      color = sf::Color(255, 0, 255); // Violet (Elite)
-                    else if(comboVal >= 5) color = sf::Color(255, 50, 50);  // Rouge (Chaud)
-                    else if(comboVal >= 3) color = sf::Color(255, 165, 0); // Orange
-                    else                   color = sf::Color::Cyan;        // Départ
-
-                    textCombo.setFillColor(color);
-
-                    sf::FloatRect cbounds = textCombo.getLocalBounds();
-                    textCombo.setOrigin(cbounds.width / 2.0f, cbounds.height / 2.0f);
-                    textCombo.setPosition(450.f, 155.f); 
-
-                    window.draw(textCombo);
-
-
-                    float tempsRestant = Monbloc.TempsRestantCombo();
-                    float ratio = std::max(0.f, std::min(1.f, tempsRestant / Monbloc.GetComboTimeLimit()));
-                    
-                    float barWidth = 140.f;
-                    float barHeight = 8.f;
-                    float rotationAngle = -5.0f;
-                    sf::Vector2f barPos(450.f, 185.f); // Position centrale sous le texte
-
-                    // 1. LE FOND (Contour + Arrière-plan sombre)
-                    sf::RectangleShape barFond(sf::Vector2f(barWidth, barHeight));
-                    barFond.setOrigin(barWidth / 2.f, barHeight / 2.f);
-                    barFond.setPosition(barPos);
-                    barFond.setRotation(rotationAngle);
-                    barFond.setFillColor(sf::Color(0, 0, 0, 150));
-                    barFond.setOutlineThickness(1.5f);
-                    barFond.setOutlineColor(sf::Color(255, 255, 255, 80)); // Petit liseré gris/blanc
-                    window.draw(barFond);
-
-                    // 2. LE REMPLISSAGE (La partie qui diminue)
-                    if (ratio > 0.01f) {
-                        sf::RectangleShape barFill(sf::Vector2f(barWidth * ratio, barHeight));
-                        
-                        // ASTUCE : L'origine à gauche permet de faire diminuer la barre vers la gauche facilement
-                        barFill.setOrigin(0.f, barHeight / 2.f); 
-                        
-                        // On calcule la position de départ (le bord gauche de la barre inclinée)
-                        // Pour simplifier, on garde l'origine au centre du fond et on décale le Fill
-                        barFill.setRotation(rotationAngle);
-                        
-                        // Calcul du décalage pour que le bord gauche du "Fill" s'aligne avec le bord gauche du "Fond"
-                        // On recule de la moitié de la largeur totale
-                        float rad = rotationAngle * 3.14159f / 180.f;
-                        float offsetX = (barWidth / 2.f) * std::cos(rad);
-                        float offsetY = (barWidth / 2.f) * std::sin(rad);
-                        
-                        barFill.setPosition(barPos.x - offsetX, barPos.y - offsetY);
-
-                        // Couleur dynamique (Dégradé visuel)
-                        sf::Color fillCol;
-                        if(ratio > 0.5f)      fillCol = sf::Color(0, 255, 150); // Vert Emeraude
-                        else if(ratio > 0.2f) fillCol = sf::Color(255, 200, 0); // Jaune/Orange
-                        else                  fillCol = sf::Color(255, 50, 50);  // Rouge flash
-
-                        barFill.setFillColor(fillCol);
-                        window.draw(barFill);
-
-                        // 3. PETIT EFFET DE BRILLANCE (Glossy effect)
-                        sf::RectangleShape barShine(sf::Vector2f(barWidth * ratio, barHeight / 2.f));
-                        barShine.setOrigin(0.f, barHeight / 4.f);
-                        barShine.setPosition(barPos.x - offsetX, barPos.y - offsetY);
-                        barShine.setRotation(rotationAngle);
-                        barShine.setFillColor(sf::Color(255, 255, 255, 50));
-                        window.draw(barShine);
-                    }
-                }
-                
-                Monbloc.VisualiserBloc();
-                window.display();
-                
-            
-                float centerXscore = (650 + 827) / 2.0f, centerYScore = 282;
-                sf::FloatRect textBoundsScore = textScore.getLocalBounds();
-                textScore.setOrigin(textBoundsScore.left + textBoundsScore.width / 2.0f, textBoundsScore.top + textBoundsScore.height / 2.0f);
-                textScore.setPosition(centerXscore, centerYScore);
-
-                float centerXlvl = (66 + 246) / 2.0f, centerYlvl = 470;
-                sf::FloatRect textBoundsLvl = textNiveau.getLocalBounds();
-                textNiveau.setOrigin(textBoundsLvl.left + textBoundsLvl.width / 2.0f, textBoundsLvl.top + textBoundsLvl.height / 2.0f);
-                textNiveau.setPosition(centerXlvl, centerYlvl);
-
-                float centerXLigne = (66 + 246) / 2.0f, centerYLigne = 345;
-                sf::FloatRect textBoundsLignes = textLignes.getLocalBounds();
-                textLignes.setOrigin(textBoundsLignes.left + textBoundsLignes.width / 2.0f, textBoundsLignes.top + textBoundsLignes.height / 2.0f);
-                textLignes.setPosition(centerXLigne, centerYLigne);
-
             }
 
-            MonblocCopy = nullptr;
-            
-            sf::Texture textureFond;
-            textureFond.create(900,540);
-            textureFond.update(window);       
-            int ChoixMenuPerdu = Menu.MenuPerdu(Monbloc.AfficherScore(), textureFond);
+            Monbloc.ChangementNiveau();
+            DrawGame(window, Monbloc, FondP,
+                     textScore, textNiveau, textLignes, textCombo,
+                     frameClock.getElapsedTime().asSeconds());
+        }
 
-            if(ChoixMenuPerdu == 1){
-                if(window.isOpen()) window.close();
-            }else{
-                break;
-            }
-            
-        }
-        if(MenuOptions == 0){
-            window.close();
-            MonblocCopy = nullptr;
-        }
-    }    
+        if (!window.isOpen()) break;
+
+        sf::Texture textureFond;
+        textureFond.create(900, 540);
+        textureFond.update(window);
+
+        int choix = Menu.MenuPerdu(Monbloc.AfficherScore(), textureFond);
+        if (choix == 1) window.close();
+        // choix == 0 → on reboucle et recrée un bloc
+    }
+
     return 0;
-} 
+}
