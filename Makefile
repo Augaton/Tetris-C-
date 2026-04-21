@@ -11,6 +11,7 @@ all: clean main
 
 main: 1.o 2.o 3.o
 	g++ -g -o TetrisLinux main.o bloc.o menu.o -lsfml-graphics -lsfml-window -lsfml-system -lGL -lpthread -lfreetype -ljpeg
+	rm -f *.o
 
 clean:
 	rm -f *.o *.exe TetrisLinux
