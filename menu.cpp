@@ -112,19 +112,26 @@ int menu::MenuJeu(){
                 AddrWindow->close();
                 return 0; 
             }
+
             sf::FloatRect PausetextGBounds = Pause.getGlobalBounds(); 
             sf::FloatRect QuittertextGBounds = Quitter.getGlobalBounds();
             sf::Vector2i mousePos = sf::Mouse::getPosition(*AddrWindow);
+            sf::Vector2f mousePosF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
+            std::vector<sf::Text*> boutons = { &Pause, &Quitter };
 
-            if (PausetextGBounds.contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y))) Pause.setStyle(sf::Text::Underlined);
-            else Pause.setStyle(sf::Text::Regular);
-            
-            if (QuittertextGBounds.contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y))) Quitter.setStyle(sf::Text::Underlined);
-            else Quitter.setStyle(sf::Text::Regular);
+            for (auto* btn : boutons) {
+                if (btn->getGlobalBounds().contains(mousePosF)) {
+                    btn->setFillColor(sf::Color(255, 204, 0));
+                    btn->setScale(1.1f, 1.1f);
+                } else {
+                    btn->setFillColor(sf::Color::White);
+                    btn->setScale(1.0f, 1.0f);
+                }
+            }
             
             if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
-                if (PausetextGBounds.contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y))) return 1; 
-                if (QuittertextGBounds.contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y))) return 0;
+                if (PausetextGBounds.contains(mousePosF)) return 1; 
+                if (QuittertextGBounds.contains(mousePosF)) return 0;
             }
         }
         float deltaTime = gameClock.restart().asSeconds();
