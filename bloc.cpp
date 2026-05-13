@@ -16,6 +16,7 @@ bloc::bloc(const sf::Texture& TextTruc, sf::RenderWindow* window, int initialY, 
     InitialiserPOS();
     CouleurAleatoire();
     BlocAleatoire();
+
     Tiles.setTextureRect(sf::IntRect(0,0,18,18));
     Tiles.setPosition(initialX, initialY);
     TabY = initialY;
@@ -23,24 +24,24 @@ bloc::bloc(const sf::Texture& TextTruc, sf::RenderWindow* window, int initialY, 
     VPerdu = false;
 
     int PatterneA[28] = { 
-                 0,2,4,6,   //I
-                 0,2,4,5,    // L
-                 1,3,4,5,   // L reversed      
-                 0,2,3,4,   // T 
-                 0,2,3,5,    // Z
-                 1,2,3,4,     // Z reversed             
-                 0,1,2,3     // carré
+        0,2,4,6,    // I
+        0,2,4,5,    // L
+        1,3,4,5,    // L reversed      
+        0,2,3,4,    // T 
+        0,2,3,5,    // Z
+        1,2,3,4,    // Z reversed             
+        0,1,2,3     // carré
     };
 
     for(int i = 0; i < 28; i++) PatterneApp[i] = PatterneA[i];
     for(int i = 0; i <28;  i++) Patterne[i] = PatterneApp[i];
 
-    //Mise en place de la map colonne ligne  (à inverser LOL)
+    //Mise en place de la map colonne ligne  (à inverser)
     for(int i = 0; i <20;  i++) for(int j = 0; j<10; j++) map[i][j]= 0;
 }
 
 bloc::~bloc(){
-
+    // rien à faire, pas d'allocation dynamique
 }
 
 void bloc::DefinitionDeStruct(int Plage, int Pattern, int i, int j){
@@ -464,7 +465,7 @@ void bloc::RotationBloc(){
             }
         }
 
-        // Amélioration du wallkick (envie de me défenestrée)
+        // Amélioration du wallkick
 
         if(ok){
             // Efface ancien bloc
@@ -484,7 +485,7 @@ void bloc::RotationBloc(){
             Ajouter(PosTot.X2, PosTot.Y2, CouleurAlea);
             Ajouter(PosTot.X3, PosTot.Y3, CouleurAlea);
             Ajouter(PosTot.X4, PosTot.Y4, CouleurAlea);
-            return; // Nothing, rien, nada, niente, nichts, ничего, 아무것도, 没什么 (merci copilote pour toute les langues x) )
+            return;
         }
     }
 }
@@ -610,6 +611,8 @@ int bloc::GetY(){
 }
 
 void bloc::Recommencer(){
+    // Complete reset of all variables to start a new game
+
     VPerdu = false;
     score = 0;
     LigneDetruiteTot = 0;
@@ -617,11 +620,12 @@ void bloc::Recommencer(){
     LigneComplete = 0;
     Niveau = 0;
     ViderTableau();
-
-    BlocSaved = 8;          // 8 = vide, pas 0 :( 
+    BlocSaved = 8;
     CouleurSaved = 0;
-    NbBloc = 0; NbBlocSuivant = 0;
-    CouleurAleaSuivant = 0; CouleurAlea = 0;
+    NbBloc = 0; 
+    NbBlocSuivant = 0;
+    CouleurAleaSuivant = 0; 
+    CouleurAlea = 0;
 
     ResetBloc();
 }

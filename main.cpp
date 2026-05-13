@@ -31,12 +31,10 @@ void DrawCombo(sf::RenderWindow& window, sf::Text& textCombo, bloc& Monbloc, flo
 
     float angleOscillation = std::sin(time * 4.f) * 5.f;
 
-    // Texte du combo
     textCombo.setString("COMBO X" + std::to_string(comboVal));
     textCombo.setOutlineThickness(2.f);
     textCombo.setOutlineColor(sf::Color::Black);
     textCombo.setRotation(angleOscillation);
-
     float scale = 1.f + std::sin(time * 10.f) * 0.1f;
     textCombo.setScale(scale, scale);
 
