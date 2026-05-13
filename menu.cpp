@@ -122,7 +122,7 @@ int menu::MenuJeu(){
             sf::FloatRect PausetextGBounds = Pause.getGlobalBounds(); 
             sf::FloatRect QuittertextGBounds = Quitter.getGlobalBounds();
             sf::Vector2i mousePos = sf::Mouse::getPosition(*AddrWindow);
-            sf::Vector2f mousePosF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
+            sf::Vector2f mousePosF = AddrWindow->mapPixelToCoords(mousePos);
             std::vector<sf::Text*> boutons = { &Pause, &Quitter };
 
             for (auto* btn : boutons) {
@@ -198,7 +198,7 @@ int menu::MenuPerdu(std::string score, sf::Texture& texture){
             sf::FloatRect RestarttextGBounds = Recommencer.getGlobalBounds(); 
             sf::FloatRect QuittertextGBounds = Quitter.getGlobalBounds();
             sf::Vector2i mousePos = sf::Mouse::getPosition(*AddrWindow);
-            sf::Vector2f mousePosF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
+            sf::Vector2f mousePosF = AddrWindow->mapPixelToCoords(mousePos);
             std::vector<sf::Text*> boutons = { &Recommencer, &Quitter };
 
             for (auto* btn : boutons) {
