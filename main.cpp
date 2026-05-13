@@ -143,7 +143,7 @@ void DrawGame(sf::RenderWindow& window, bloc& Monbloc, sf::Sprite& fond,
 
 int main() {
     sf::RenderWindow window(sf::VideoMode(900, 540), "Tetris game");
-    window.setFramerateLimit(60);
+    window.setVerticalSyncEnabled(true);
 
     sf::Font font;
     if (!font.loadFromFile("asset/arial.ttf")) return EXIT_FAILURE;
