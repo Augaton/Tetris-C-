@@ -29,11 +29,13 @@ void DrawCombo(sf::RenderWindow& window, sf::Text& textCombo, bloc& Monbloc, flo
     int comboVal = Monbloc.AfficherCombo();
     if (comboVal <= 0) return;
 
+    float angleOscillation = std::sin(time * 4.f) * 5.f;
+
     // Texte du combo
     textCombo.setString("COMBO X" + std::to_string(comboVal));
     textCombo.setOutlineThickness(2.f);
     textCombo.setOutlineColor(sf::Color::Black);
-    textCombo.setRotation(-5.f);
+    textCombo.setRotation(angleOscillation);
 
     float scale = 1.f + std::sin(time * 10.f) * 0.1f;
     textCombo.setScale(scale, scale);
@@ -56,15 +58,14 @@ void DrawCombo(sf::RenderWindow& window, sf::Text& textCombo, bloc& Monbloc, flo
 
     const float barW     = 140.f;
     const float barH     = 8.f;
-    const float angle    = -5.f;
-    const float rad      = angle * 3.14159f / 180.f;
+    const float rad      = angleOscillation * 3.14159f / 180.f;
     const sf::Vector2f center(450.f, 178.f);
 
     // Fond
     sf::RectangleShape fond(sf::Vector2f(barW, barH));
     fond.setOrigin(barW / 2.f, barH / 2.f);
     fond.setPosition(center);
-    fond.setRotation(angle);
+    fond.setRotation(angleOscillation);
     fond.setFillColor(sf::Color(0, 0, 0, 150));
     fond.setOutlineThickness(1.5f);
     fond.setOutlineColor(sf::Color(255, 255, 255, 80));
@@ -86,7 +87,7 @@ void DrawCombo(sf::RenderWindow& window, sf::Text& textCombo, bloc& Monbloc, flo
         sf::RectangleShape fill(sf::Vector2f(barW * ratio, barH));
         fill.setOrigin(0.f, barH / 2.f);
         fill.setPosition(left);
-        fill.setRotation(angle);
+        fill.setRotation(angleOscillation);
         fill.setFillColor(fillCol);
         window.draw(fill);
 
@@ -94,7 +95,7 @@ void DrawCombo(sf::RenderWindow& window, sf::Text& textCombo, bloc& Monbloc, flo
         sf::RectangleShape shine(sf::Vector2f(barW * ratio, barH / 2.f));
         shine.setOrigin(0.f, barH / 4.f);
         shine.setPosition(left);
-        shine.setRotation(angle);
+        shine.setRotation(angleOscillation);
         shine.setFillColor(sf::Color(255, 255, 255, 50));
         window.draw(shine);
     }
