@@ -208,6 +208,7 @@ int main() {
                             if (!Monbloc.DetectionBlocEmpile()) {
                                 Monbloc.mouvement("down");
                                 Monbloc.ScoreAdd("DescenteRapide", 0);
+                                gravityClock.restart();
                             }
                             break;
                         default: break;
