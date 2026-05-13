@@ -66,7 +66,10 @@ class bloc{
         inline void Dessiner(){ AddrWindow->display();};
         inline int AfficherBlocSuivant(){ return NbBlocSuivant; };
         inline int AfficherBlocSaved(){ return BlocSaved;};
-        inline int VitesseBloc(){ return ( (60*100)-(2*Niveau*100))/4   ;};
+        inline int VitesseBloc() {
+            int v = (6000 - (200 * Niveau)) / 4;
+            return (v > 100) ? v : 100;
+        }
         inline std::string AfficherLigneDetruite(){ return std::to_string(LigneDetruiteTot);};
         inline std::string AfficherNiveau(){return std::to_string(Niveau);};
         inline std::string AfficherScore(){return std::to_string(score);};
