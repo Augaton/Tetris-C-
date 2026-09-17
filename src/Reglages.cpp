@@ -84,6 +84,8 @@ void Reglages::ReinitialiserOptions() {
     descenteDouceMs = defaut.descenteDouceMs;
     verrouillageMs = defaut.verrouillageMs;
     fantome = defaut.fantome;
+    effets = defaut.effets;
+    secousses = defaut.secousses;
     pleinEcran = defaut.pleinEcran;
 }
 
@@ -123,6 +125,8 @@ Reglages Analyser(const std::string& contenu, const Reglages& defauts, const Nom
         else if (cle == "descente_douce_ms") nombre(r.descenteDouceMs, Reglages::BORNES_DESCENTE);
         else if (cle == "verrouillage_ms") nombre(r.verrouillageMs, Reglages::BORNES_VERROUILLAGE);
         else if (cle == "fantome") booleen(r.fantome);
+        else if (cle == "effets") booleen(r.effets);
+        else if (cle == "secousses") booleen(r.secousses);
         else if (cle == "plein_ecran") booleen(r.pleinEcran);
         else if (cle.rfind("touche.", 0) == 0) {
             const std::string id = cle.substr(7);
@@ -159,6 +163,8 @@ std::string Serialiser(const Reglages& r, const CodeVersNom& nomTouche) {
            << "descente_douce_ms = " << r.descenteDouceMs << '\n'
            << "verrouillage_ms = " << r.verrouillageMs << '\n'
            << "fantome = " << (r.fantome ? "oui" : "non") << '\n'
+           << "effets = " << (r.effets ? "oui" : "non") << '\n'
+           << "secousses = " << (r.secousses ? "oui" : "non") << '\n'
            << "plein_ecran = " << (r.pleinEcran ? "oui" : "non") << '\n'
            << "\n# Touches : jusqu'à " << TOUCHES_PAR_ACTION << " par action, séparées par des virgules\n";
 

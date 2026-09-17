@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Effets.h"
 #include "Jeu.h"
 #include "Reglages.h"
 
@@ -13,7 +14,8 @@ public:
     Rendu(const sf::Texture& tuiles, const sf::Texture& fond, const sf::Font& police);
 
     // `echelle` = pixels par unité logique, pour des textes nets
-    void Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float echelle, const Reglages& reglages);
+    void Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float echelle, const Reglages& reglages,
+                  Effets& effets);
 
 private:
     // Texte dont la chaîne n'est reconstruite que si la valeur ou l'échelle change
@@ -27,7 +29,10 @@ private:
     sf::Sprite fond;
     sf::RectangleShape limite;
     sf::RectangleShape masqueCommandes;
-    sf::VertexArray sommets{sf::Quads}; // toutes les tuiles en un seul appel de dessin
+    sf::VertexArray sommets{sf::Quads}; // tuiles regroupées : un appel de dessin pour le plateau, un pour les aperçus
+
+    float dernierTemps = 0.f;
+    double scoreAffiche = 0.0;
 
     Nombre score, lignes, niveau;
     sf::Text texteCombo;

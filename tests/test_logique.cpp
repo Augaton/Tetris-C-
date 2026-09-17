@@ -103,6 +103,18 @@ void TestLigneEtScore() {
     VERIFIER(jeu.Score() == 186);
     for (int valeur : jeu.Plateau()[cst::HAUTEUR - 1]) VERIFIER(valeur == 0);
     VERIFIER(!jeu.Perdu());
+
+    // Événements pour les effets : chute, verrouillage puis ligne (avec son contenu d'avant effacement)
+    const auto& ev = jeu.Evenements();
+    VERIFIER(ev.size() == 3);
+    if (ev.size() == 3) {
+        VERIFIER(ev[0].type == EvenementJeu::Type::ChuteRapide && ev[0].distance == 18);
+        VERIFIER(ev[1].type == EvenementJeu::Type::Verrouillage);
+        VERIFIER(ev[2].type == EvenementJeu::Type::Lignes && ev[2].nbLignes == 1 && ev[2].lignes[0] == cst::HAUTEUR - 1);
+        VERIFIER(ev[2].points == 150 && ev[2].contenu[0][0] == 1 && ev[2].contenu[0][4] == piece::Couleur(TypePiece::I));
+    }
+    jeu.ViderEvenements();
+    VERIFIER(jeu.Evenements().empty());
 }
 
 void TestDefaite() {
@@ -243,6 +255,7 @@ void TestReglages() {
     // Aller-retour par le fichier
     const Reglages relu = reglages::Analyser(reglages::Serialiser(r, NomTest), Reglages{}, CodeTest);
     VERIFIER(relu.dasMs == r.dasMs && relu.arrMs == r.arrMs && relu.fantome == r.fantome);
+    VERIFIER(relu.effets == r.effets && relu.secousses == r.secousses);
     VERIFIER(relu.touches == r.touches);
 
     // Une touche ne peut servir qu'à une action

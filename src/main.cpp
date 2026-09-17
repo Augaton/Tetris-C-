@@ -1,5 +1,6 @@
 #include "Application.h"
 #include "Constantes.h"
+#include "Effets.h"
 #include "Jeu.h"
 #include "MeilleurScore.h"
 #include "Menu.h"
@@ -50,12 +51,13 @@ struct Controles {
 Menu::Choix JouerPartie(Application& app, Menu& menu, Rendu& rendu, const std::filesystem::path& cheminRecord,
                         long long& record) {
     Jeu jeu;
+    Effets effets(app.police);
     Controles controles(app.reglages);
     sf::Clock horloge, animation;
     bool abandon = false;
 
     const auto dessiner = [&](sf::RenderTarget& cible) {
-        rendu.Dessiner(cible, jeu, animation.getElapsedTime().asSeconds(), app.Echelle(), app.reglages);
+        rendu.Dessiner(cible, jeu, animation.getElapsedTime().asSeconds(), app.Echelle(), app.reglages, effets);
     };
 
     // Après une pause ou un refus d'abandon : réglages éventuellement modifiés, touches relâchées, 3-2-1
@@ -125,6 +127,10 @@ Menu::Choix JouerPartie(Application& app, Menu& menu, Rendu& rendu, const std::f
         for (int i = controles.descente.MettreAJour(dt); i > 0; i--)
             if (!jeu.DescenteDouce()) break;
         jeu.MettreAJour(dt);
+
+        effets.Traiter(jeu.Evenements(), app.reglages.effets, app.reglages.secousses);
+        jeu.ViderEvenements();
+        effets.MettreAJour(dt);
 
         app.fenetre.clear(COULEUR_FOND);
         dessiner(app.fenetre);

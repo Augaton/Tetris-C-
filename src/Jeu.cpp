@@ -4,9 +4,15 @@
 #include <cmath>
 
 Jeu::Jeu(unsigned graine, const Grille& depart) : grille(depart), sac(graine) {
+    evenements.reserve(32);
     TypePiece premiere = sac.Tirer();
     suivante = sac.Tirer();
     Apparaitre(premiere);
+}
+
+void Jeu::Signaler(const EvenementJeu& evenement) {
+    if (evenements.size() >= 32) evenements.erase(evenements.begin()); // personne ne les lit (tests)
+    evenements.push_back(evenement);
 }
 
 Cases Jeu::Placer(const EtatPiece& piece) {
@@ -99,6 +105,13 @@ void Jeu::ChuteRapide() {
     }
     active.y += distance;
     score += 2LL * std::max(1, niveau) * distance;
+
+    EvenementJeu chute{EvenementJeu::Type::ChuteRapide};
+    chute.cases = CasesPiece();
+    chute.couleur = piece::Couleur(active.type);
+    chute.distance = distance;
+    Signaler(chute);
+
     Verrouiller();
 }
 
@@ -177,8 +190,34 @@ void Jeu::Verrouiller() {
     const int couleur = piece::Couleur(active.type);
     for (const Case& c : CasesPiece()) grille[c.y][c.x] = couleur;
 
+    EvenementJeu verrou{EvenementJeu::Type::Verrouillage};
+    verrou.cases = CasesPiece();
+    verrou.couleur = couleur;
+    Signaler(verrou);
+
+    // Lignes pleines relevées avant l'effacement, pour les effets
+    EvenementJeu lignesPleines{EvenementJeu::Type::Lignes};
+    for (int y = 0; y < cst::HAUTEUR && lignesPleines.nbLignes < 4; y++) {
+        if (std::all_of(grille[y].begin(), grille[y].end(), [](int v) { return v != 0; })) {
+            lignesPleines.lignes[lignesPleines.nbLignes] = y;
+            lignesPleines.contenu[lignesPleines.nbLignes] = grille[y];
+            lignesPleines.nbLignes++;
+        }
+    }
+
+    const int niveauAvant = niveau;
+    const long long scoreAvant = score;
     int effacees = EffacerLignes();
-    if (effacees > 0) AjouterLignes(effacees);
+    if (effacees > 0) {
+        AjouterLignes(effacees);
+        lignesPleines.points = score - scoreAvant;
+        Signaler(lignesPleines);
+    }
+    if (niveau > niveauAvant) {
+        EvenementJeu passage{EvenementJeu::Type::Niveau};
+        passage.niveau = niveau;
+        Signaler(passage);
+    }
 
     // Perdu s'il reste un bloc au-dessus de la ligne limite
     for (int y = 0; y < cst::LIGNES_ZONE_LIMITE; y++) {

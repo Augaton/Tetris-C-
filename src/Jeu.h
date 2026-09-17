@@ -7,6 +7,24 @@
 #include <array>
 #include <optional>
 #include <random>
+#include <vector>
+
+// Ce qui vient de se passer, pour les effets visuels. Taille fixe : pas d'allocation en jeu.
+struct EvenementJeu {
+    enum class Type { ChuteRapide, Verrouillage, Lignes, Niveau };
+
+    Type type;
+    Cases cases{};   // ChuteRapide, Verrouillage : cases de la pièce posée
+    int couleur = 0; // n° de tuile de la pièce
+    int distance = 0; // ChuteRapide : lignes parcourues
+
+    int nbLignes = 0;                                                   // Lignes
+    std::array<int, 4> lignes{};                                        // indices avant effacement
+    std::array<std::array<int, cst::LARGEUR>, 4> contenu{};             // tuiles des lignes effacées
+    long long points = 0;                                               // points gagnés par ces lignes
+
+    int niveau = 0; // Niveau : nouveau niveau
+};
 
 // Règles du jeu, sans rendu ni SFML.
 // La grille ne contient que les blocs posés : la pièce active est gardée à part.
@@ -29,6 +47,10 @@ public:
 
     // Temps pendant lequel la pièce posée peut encore bouger avant d'être verrouillée
     void DefinirDelaiVerrouillage(float secondes) { delaiVerrouillage = secondes < 0.f ? 0.f : secondes; }
+
+    // Événements depuis le dernier ViderEvenements() (les plus anciens sont oubliés au-delà de 32)
+    const std::vector<EvenementJeu>& Evenements() const { return evenements; }
+    void ViderEvenements() { evenements.clear(); }
 
     const Grille& Plateau() const { return grille; }
     Cases CasesPiece() const;
@@ -78,6 +100,9 @@ private:
     int reinitialisations = 0;
     int ligneLaPlusBasse = 0;
 
+    std::vector<EvenementJeu> evenements;
+
+    void Signaler(const EvenementJeu& evenement);
     static Cases Placer(const EtatPiece& piece);
     bool Libre(const Cases& cases) const;
     bool AuSol() const;

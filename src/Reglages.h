@@ -41,6 +41,8 @@ struct Reglages {
     int descenteDouceMs = 50;
     int verrouillageMs = 500;
     bool fantome = true;
+    bool effets = true;    // particules, éclats, textes flottants
+    bool secousses = true; // tremblement du plateau (désactivable pour le confort visuel)
     bool pleinEcran = false;
 
     // [action][0] = touche principale, [1] = secondaire

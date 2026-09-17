@@ -61,6 +61,7 @@ tetris_options(tetris_logique)
 
 add_executable(Tetris WIN32
     src/Application.cpp
+    src/Effets.cpp
     src/main.cpp
     src/Menu.cpp
     src/Rendu.cpp

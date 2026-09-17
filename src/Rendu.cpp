@@ -116,9 +116,17 @@ void Rendu::DessinerCommandes(sf::RenderTarget& cible, const Reglages& reglages,
     for (const sf::Text& t : texteCommandes) cible.draw(t);
 }
 
-void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float echelle, const Reglages& reglages) {
+void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float echelle, const Reglages& reglages,
+                     Effets& effets) {
+    const float dt = std::clamp(temps - dernierTemps, 0.f, 0.1f);
+    dernierTemps = temps;
+
     cible.draw(fond);
-    cible.draw(limite);
+
+    // Le plateau et ses effets tremblent ensemble ; le reste de l'interface reste fixe
+    sf::RenderStates plateau;
+    plateau.transform.translate(effets.Secousse());
+    cible.draw(limite, plateau);
 
     sommets.clear();
 
@@ -129,8 +137,11 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
 
     if (!jeu.Perdu()) {
         const int couleur = piece::Couleur(jeu.PieceActive());
-        if (reglages.fantome)
-            for (const Case& c : jeu.CasesFantome()) AjouterTuile(couleur, PositionCase(c.x, c.y), sf::Color(255, 255, 255, 100));
+        if (reglages.fantome) {
+            // Fantôme qui respire légèrement
+            const auto alpha = static_cast<sf::Uint8>(90.f + (reglages.effets ? 25.f * std::sin(temps * 5.f) : 0.f));
+            for (const Case& c : jeu.CasesFantome()) AjouterTuile(couleur, PositionCase(c.x, c.y), sf::Color(255, 255, 255, alpha));
+        }
 
         // La pièce s'assombrit pendant le délai de verrouillage
         const auto luminosite = static_cast<sf::Uint8>(255.f - 100.f * jeu.ProgressionVerrouillage());
@@ -138,18 +149,32 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
         for (const Case& c : jeu.CasesPiece()) AjouterTuile(couleur, PositionCase(c.x, c.y), teinte);
     }
 
+    plateau.texture = &tuiles;
+    cible.draw(sommets, plateau);
+    plateau.texture = nullptr;
+    effets.DessinerPlateau(cible, plateau);
+
+    sommets.clear();
     AjouterApercu(jeu.PieceSuivante(), cst::APERCU_SUIVANT, sf::Color::White);
     AjouterApercu(jeu.PieceGardee(), cst::APERCU_GARDE,
                   jeu.GardeUtilisee() ? sf::Color(120, 120, 120) : sf::Color::White);
-
     cible.draw(sommets, &tuiles);
 
-    DessinerNombre(cible, score, jeu.Score(), cst::TEXTE_SCORE, echelle);
+    // Le score affiché rattrape le vrai score en quelques images
+    if (!reglages.effets || static_cast<double>(jeu.Score()) < scoreAffiche)
+        scoreAffiche = static_cast<double>(jeu.Score());
+    else
+        scoreAffiche += (static_cast<double>(jeu.Score()) - scoreAffiche) * std::min(1.f, dt * 12.f);
+    const long long scoreArrondi =
+        jeu.Score() - scoreAffiche < 1.0 ? jeu.Score() : static_cast<long long>(scoreAffiche);
+
+    DessinerNombre(cible, score, scoreArrondi, cst::TEXTE_SCORE, echelle);
     DessinerNombre(cible, lignes, jeu.Lignes(), cst::TEXTE_LIGNES, echelle);
     DessinerNombre(cible, niveau, jeu.Niveau(), cst::TEXTE_NIVEAU, echelle);
     DessinerCommandes(cible, reglages, echelle);
 
     DessinerCombo(cible, jeu, temps, echelle);
+    effets.DessinerTextes(cible, echelle);
 }
 
 void Rendu::DessinerCombo(sf::RenderTarget& cible, const Jeu& jeu, float temps, float echelle) {
