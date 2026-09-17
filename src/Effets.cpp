@@ -179,6 +179,11 @@ void Effets::Traiter(const std::vector<EvenementJeu>& evenements, bool effetsAct
     }
 }
 
+void Effets::AnnoncerRecord() {
+    AfficherTexte(Utf8("NOUVEAU RECORD !"), {cst::PLATEAU.x + T * cst::LARGEUR / 2.f, cst::PLATEAU.y + 60.f}, 24,
+                  sf::Color(255, 204, 0), 1.6f);
+}
+
 void Effets::MettreAJour(float dt) {
     for (Particule& p : particules) {
         p.vie += dt;

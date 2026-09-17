@@ -78,6 +78,8 @@ Menu::Choix JouerPartie(Application& app, Menu& menu, Rendu& rendu, const std::f
                         long long& record) {
     Jeu jeu;
     Effets effets(app.police);
+    rendu.DefinirRecord(record);
+    bool recordAnnonce = record <= 0; // pas d'annonce pour la toute première partie
     Controles controles(app.reglages);
     sf::Clock horloge, animation;
     bool abandon = false;
@@ -108,7 +110,8 @@ Menu::Choix JouerPartie(Application& app, Menu& menu, Rendu& rendu, const std::f
             if (app.GererEvenement(evenement)) continue;
 
             if (evenement.type == sf::Event::LostFocus) {
-                pause = true;
+                // Ignoré si le focus est déjà revenu (ex. fenêtre recréée par F11)
+                if (!app.fenetre.hasFocus()) pause = true;
                 continue;
             }
             if (evenement.type != sf::Event::KeyPressed && evenement.type != sf::Event::KeyReleased) continue;
@@ -156,6 +159,10 @@ Menu::Choix JouerPartie(Application& app, Menu& menu, Rendu& rendu, const std::f
         jeu.MettreAJour(dt);
 
         effets.Traiter(jeu.Evenements(), app.reglages.effets, app.reglages.secousses);
+        if (!recordAnnonce && jeu.Score() > record) {
+            recordAnnonce = true;
+            if (app.reglages.effets) effets.AnnoncerRecord();
+        }
         jeu.ViderEvenements();
         effets.MettreAJour(dt);
 

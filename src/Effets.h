@@ -16,6 +16,9 @@ public:
     void Traiter(const std::vector<EvenementJeu>& evenements, bool effetsActifs, bool secoussesActives);
     void MettreAJour(float dt);
 
+    // « NOUVEAU RECORD ! » quand le meilleur score est dépassé en cours de partie
+    void AnnoncerRecord();
+
     // Décalage du plateau pour le tremblement (unités logiques)
     sf::Vector2f Secousse() const;
 

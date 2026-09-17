@@ -26,8 +26,7 @@ inline constexpr Point APERCU_GARDE = {158.5f, 195.f};    // centre du cadre "Ga
 inline constexpr Point TEXTE_SCORE = {738.5f, 282.f};
 inline constexpr Point TEXTE_LIGNES = {156.f, 345.f};
 inline constexpr Point TEXTE_NIVEAU = {156.f, 470.f};
-inline constexpr Point TEXTE_COMBO = {450.f, 150.f};
-inline constexpr Point BARRE_COMBO = {450.f, 178.f};
+inline constexpr Point BADGE_COMBO = {450.f, 111.f}; // bande libre entre le titre et la grille
 
 // Progression
 inline constexpr int LIGNES_PAR_NIVEAU = 10;
@@ -39,6 +38,7 @@ inline constexpr float GRAVITE_FACTEUR = 0.85f;
 inline constexpr float GRAVITE_MIN_S = 0.1f;
 
 inline constexpr float COMBO_DUREE_S = 4.f;
+inline constexpr float COMBO_DISPARITION_S = 0.25f; // fondu du badge quand le combo est perdu
 
 // Écran de reprise après une pause
 inline constexpr float COMPTE_A_REBOURS_S = 0.6f; // durée de chaque chiffre (3, 2, 1)

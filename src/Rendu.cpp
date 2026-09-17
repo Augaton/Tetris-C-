@@ -19,6 +19,8 @@ sf::Vector2f PositionCase(int x, int y) {
     return {cst::PLATEAU.x + static_cast<float>(cst::TUILE * x), cst::PLATEAU.y + static_cast<float>(cst::TUILE * y)};
 }
 
+const sf::Uint32 SIGNE_FOIS = 0xD7; // « × »
+
 // Zone du panneau « Command » de FondPrincipal.png où la liste des touches est redessinée
 const sf::FloatRect ZONE_COMMANDES(630.f, 382.f, 222.f, 116.f);
 
@@ -29,7 +31,7 @@ Rendu::Rendu(const sf::Texture& tuiles, const sf::Texture& fondTexture, const sf
     // Capacité réservée une fois : plus de réallocation pendant la partie
     sommets.resize(4 * (cst::LARGEUR * cst::HAUTEUR + 16));
     sommets.clear();
-    formes.resize(4 * 8);
+    formes.resize(6 * 24 * 5);
     formes.clear();
 
     auto preparer = [&](sf::Text& t) {
@@ -40,7 +42,9 @@ Rendu::Rendu(const sf::Texture& tuiles, const sf::Texture& fondTexture, const sf
     for (Nombre* n : {&score, &lignes, &niveau}) preparer(n->texte);
     for (sf::Text& t : texteCommandes) preparer(t);
     preparer(texteCombo);
-    texteCombo.setOutlineColor(sf::Color::Black);
+    preparer(texteComboLabel);
+    texteComboLabel.setString("COMBO");
+    texteComboLabel.setLetterSpacing(2.f);
 
     limite.setSize({static_cast<float>(cst::TUILE * cst::LARGEUR), 2.f});
     limite.setFillColor(sf::Color(255, 0, 0, 150));
@@ -54,33 +58,59 @@ Rendu::Rendu(const sf::Texture& tuiles, const sf::Texture& fondTexture, const sf
 
 void Rendu::PrechargerGlyphes(float echelle) {
     echellePrechargee = echelle;
-    static const std::string caracteres = "0123456789+ !ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static const std::string ascii = "0123456789+ !ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    std::basic_string<sf::Uint32> caracteres(ascii.begin(), ascii.end());
+    caracteres.push_back(SIGNE_FOIS);
 
     const float contour = 2.f * echelle;
     // Tailles logiques des textes de la partie : nombres, combo, textes flottants
     const struct {
         unsigned taille;
         bool avecContour;
-    } styles[] = {{20, false}, {25, true}, {18, true}, {22, true}, {28, true}, {30, true}};
+    } styles[] = {{20, false}, {11, false}, {18, false}, {18, true}, {22, true}, {24, true}, {28, true}, {30, true}};
 
     for (const auto& style : styles) {
         const unsigned taille =
             std::max(1u, static_cast<unsigned>(std::lround(static_cast<float>(style.taille) * echelle)));
-        for (char c : caracteres) {
-            police.getGlyph(static_cast<sf::Uint32>(c), taille, true, 0.f);
-            if (style.avecContour) police.getGlyph(static_cast<sf::Uint32>(c), taille, true, contour);
+        for (sf::Uint32 c : caracteres) {
+            police.getGlyph(c, taille, true, 0.f);
+            if (style.avecContour) police.getGlyph(c, taille, true, contour);
         }
     }
 }
 
-void Rendu::AjouterRectangle(const sf::Transform& transformation, sf::FloatRect zone, sf::Color couleur) {
-    const sf::Vector2f coins[] = {
-        {zone.left, zone.top},
-        {zone.left + zone.width, zone.top},
-        {zone.left + zone.width, zone.top + zone.height},
-        {zone.left, zone.top + zone.height},
+void Rendu::AjouterRectangleArrondi(const sf::Transform& transformation, sf::FloatRect zone, float rayon,
+                                    sf::Color couleur) {
+    if (zone.width <= 0.f || zone.height <= 0.f || couleur.a == 0) return;
+    rayon = std::min({rayon, zone.width / 2.f, zone.height / 2.f});
+
+    // Éventail de triangles autour du centre : 4 arcs de SEGMENTS segments chacun
+    const int SEGMENTS = 5;
+    const float droite = zone.left + zone.width, bas = zone.top + zone.height;
+    const sf::Vector2f centresArcs[4] = {
+        {droite - rayon, zone.top + rayon}, {droite - rayon, bas - rayon},
+        {zone.left + rayon, bas - rayon},   {zone.left + rayon, zone.top + rayon},
     };
-    for (const sf::Vector2f& coin : coins) formes.append(sf::Vertex(transformation.transformPoint(coin), couleur));
+    const sf::Vector2f centre = transformation.transformPoint(zone.left + zone.width / 2.f, zone.top + zone.height / 2.f);
+
+    sf::Vector2f premier, precedent;
+    for (int arc = 0; arc < 4; arc++) {
+        for (int i = 0; i <= SEGMENTS; i++) {
+            const float angle = (-90.f + 90.f * (static_cast<float>(arc) + static_cast<float>(i) / SEGMENTS)) * 3.14159265f / 180.f;
+            const sf::Vector2f point = transformation.transformPoint(centresArcs[arc] + sf::Vector2f(std::cos(angle), std::sin(angle)) * rayon);
+            if (arc == 0 && i == 0) {
+                premier = point;
+            } else {
+                formes.append(sf::Vertex(centre, couleur));
+                formes.append(sf::Vertex(precedent, couleur));
+                formes.append(sf::Vertex(point, couleur));
+            }
+            precedent = point;
+        }
+    }
+    formes.append(sf::Vertex(centre, couleur));
+    formes.append(sf::Vertex(precedent, couleur));
+    formes.append(sf::Vertex(premier, couleur));
 }
 
 void Rendu::AjouterTuile(int couleur, sf::Vector2f pos, sf::Color teinte) {
@@ -165,7 +195,7 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
     // Le plateau et ses effets tremblent ensemble ; le reste de l'interface reste fixe
     sf::RenderStates plateau;
     plateau.transform.translate(effets.Secousse());
-    cible.draw(limite, plateau);
+    DessinerLimite(cible, jeu, temps, plateau);
 
     sommets.clear();
 
@@ -221,65 +251,114 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
     const long long scoreArrondi =
         jeu.Score() - scoreAffiche < 1.0 ? jeu.Score() : static_cast<long long>(scoreAffiche);
 
+    // Doré dès que le meilleur score est battu
+    score.texte.setFillColor(record > 0 && jeu.Score() > record ? sf::Color(255, 204, 0) : sf::Color::White);
     DessinerNombre(cible, score, scoreArrondi, cst::TEXTE_SCORE, echelle);
     DessinerNombre(cible, lignes, jeu.Lignes(), cst::TEXTE_LIGNES, echelle);
     DessinerNombre(cible, niveau, jeu.Niveau(), cst::TEXTE_NIVEAU, echelle);
     DessinerCommandes(cible, reglages, echelle);
 
-    DessinerCombo(cible, jeu, temps, echelle);
+    DessinerCombo(cible, jeu, temps, dt, echelle);
     effets.DessinerTextes(cible, echelle);
 }
 
-void Rendu::DessinerCombo(sf::RenderTarget& cible, const Jeu& jeu, float temps, float echelle) {
-    const int combo = jeu.Combo();
-    if (combo <= 0) return;
+void Rendu::DessinerLimite(sf::RenderTarget& cible, const Jeu& jeu, float temps, const sf::RenderStates& etats) {
+    // La ligne limite s'intensifie et clignote quand la pile s'en approche (4 lignes ou moins)
+    int plusHaute = cst::HAUTEUR;
+    for (int y = 0; y < cst::HAUTEUR && plusHaute == cst::HAUTEUR; y++)
+        for (int valeur : jeu.Plateau()[y])
+            if (valeur != 0) {
+                plusHaute = y;
+                break;
+            }
 
-    const float angle = std::sin(temps * 4.f) * 5.f;
-    const float pulsation = 1.f + std::sin(temps * 10.f) * 0.1f;
-
-    if (combo != comboAffiche) {
-        comboAffiche = combo;
-        texteCombo.setString("COMBO X" + std::to_string(combo));
+    const float danger = std::clamp(static_cast<float>(cst::LIGNES_ZONE_LIMITE + 4 - plusHaute) / 4.f, 0.f, 1.f);
+    const float pulsation = 0.5f + 0.5f * std::sin(temps * 9.f);
+    limite.setFillColor(sf::Color(255, static_cast<sf::Uint8>(40.f * (1.f - danger)), 0,
+                                  static_cast<sf::Uint8>(150.f + 105.f * danger * pulsation)));
+    const float epaisseur = 2.f + 2.f * danger;
+    if (limite.getSize().y != epaisseur) {
+        limite.setSize({static_cast<float>(cst::TUILE * cst::LARGEUR), epaisseur});
+        limite.setOrigin(0.f, (epaisseur - 2.f) / 2.f);
     }
+    cible.draw(limite, etats);
+}
 
-    if (combo >= 8)      texteCombo.setFillColor(sf::Color(255, 0, 255));
-    else if (combo >= 5) texteCombo.setFillColor(sf::Color(255, 50, 50));
-    else if (combo >= 3) texteCombo.setFillColor(sf::Color(255, 165, 0));
-    else                 texteCombo.setFillColor(sf::Color::Cyan);
+namespace {
 
-    // Contour en pixels réels : ramené à 2 unités logiques
-    texteCombo.setOutlineThickness(2.f * echelle);
-    PlacerTexte(texteCombo, 25, Vers(cst::TEXTE_COMBO), echelle, pulsation);
-    texteCombo.setRotation(angle);
-    cible.draw(texteCombo);
+// Couleur du badge selon le palier (couleurs des tuiles, pour rester cohérent avec le jeu)
+sf::Color CouleurCombo(int combo) {
+    if (combo >= 8) return {230, 80, 200};
+    if (combo >= 5) return {235, 125, 36};
+    if (combo >= 3) return {244, 200, 36};
+    if (combo >= 2) return {102, 191, 41};
+    return {48, 190, 229};
+}
 
-    // Barre de temps restant : quelques quads tournés, un seul appel de dessin
-    const float ratio = std::clamp(jeu.ComboRestant() / cst::COMBO_DUREE_S, 0.f, 1.f);
-    const float largeur = 140.f;
-    const float hauteur = 8.f;
-    const float bord = 1.5f;
+sf::Color Attenuer(sf::Color couleur, float facteur) {
+    couleur.a = static_cast<sf::Uint8>(static_cast<float>(couleur.a) * std::clamp(facteur, 0.f, 1.f));
+    return couleur;
+}
+
+} // namespace
+
+void Rendu::DessinerCombo(sf::RenderTarget& cible, const Jeu& jeu, float temps, float dt, float echelle) {
+    const int combo = jeu.Combo();
+
+    if (combo > 0) {
+        if (combo != comboAffiche) {
+            comboAffiche = combo;
+            tempsCombo = 0.f;
+            texteCombo.setString(sf::String(SIGNE_FOIS) + std::to_string(combo));
+        }
+        disparitionCombo = 0.f;
+    } else if (comboAffiche > 0) {
+        disparitionCombo += dt;
+        if (disparitionCombo >= cst::COMBO_DISPARITION_S) comboAffiche = 0;
+    }
+    if (comboAffiche <= 0) return;
+    tempsCombo += dt;
+
+    const float ratio = combo > 0 ? std::clamp(jeu.ComboRestant() / cst::COMBO_DUREE_S, 0.f, 1.f) : 0.f;
+    const float fondu = 1.f - disparitionCombo / cst::COMBO_DISPARITION_S;
+
+    // Apparition avec rebond amorti, disparition en rétrécissant
+    const float rebond = 0.3f * std::exp(-10.f * tempsCombo) * std::cos(18.f * tempsCombo);
+    const float zoom = (1.f + rebond) * (0.6f + 0.4f * fondu);
+
+    // Temps presque écoulé : le contour clignote
+    const float alerte = (combo > 0 && ratio < 0.25f) ? 0.45f + 0.55f * std::abs(std::sin(temps * 14.f)) : 1.f;
+
+    const sf::Color couleur = CouleurCombo(comboAffiche);
+    const sf::Vector2f centre = Vers(cst::BADGE_COMBO);
+    const float largeur = 150.f, hauteur = 30.f, rayon = hauteur / 2.f;
 
     sf::Transform transformation;
-    transformation.translate(Vers(cst::BARRE_COMBO)).rotate(angle);
+    transformation.translate(centre).scale(zoom, zoom);
 
     formes.clear();
-    const sf::Color couleurBord(255, 255, 255, 80);
-    const float gauche = -largeur / 2.f, haut = -hauteur / 2.f;
-    AjouterRectangle(transformation, {gauche, haut, largeur, hauteur}, sf::Color(0, 0, 0, 150));
-    AjouterRectangle(transformation, {gauche - bord, haut - bord, largeur + 2.f * bord, bord}, couleurBord);
-    AjouterRectangle(transformation, {gauche - bord, haut + hauteur, largeur + 2.f * bord, bord}, couleurBord);
-    AjouterRectangle(transformation, {gauche - bord, haut, bord, hauteur}, couleurBord);
-    AjouterRectangle(transformation, {gauche + largeur, haut, bord, hauteur}, couleurBord);
+    const sf::FloatRect badge(-largeur / 2.f, -hauteur / 2.f, largeur, hauteur);
+    auto agrandi = [&](float marge) {
+        return sf::FloatRect(badge.left - marge, badge.top - marge, badge.width + 2.f * marge, badge.height + 2.f * marge);
+    };
 
-    if (ratio > 0.01f) {
-        sf::Color couleur;
-        if (ratio > 0.5f)      couleur = sf::Color(0, 255, 150);
-        else if (ratio > 0.2f) couleur = sf::Color(255, 200, 0);
-        else                   couleur = sf::Color(255, 50, 50);
-
-        AjouterRectangle(transformation, {gauche, haut, largeur * ratio, hauteur}, couleur);
-        AjouterRectangle(transformation, {gauche, -hauteur / 4.f, largeur * ratio, hauteur / 2.f},
-                         sf::Color(255, 255, 255, 50));
-    }
+    AjouterRectangleArrondi(transformation, agrandi(6.f), rayon + 6.f, Attenuer(sf::Color(couleur.r, couleur.g, couleur.b, 40), fondu * alerte));
+    AjouterRectangleArrondi(transformation, agrandi(2.f), rayon + 2.f, Attenuer(couleur, fondu * alerte));
+    AjouterRectangleArrondi(transformation, badge, rayon, Attenuer(sf::Color(18, 18, 18, 235), fondu));
+    // Temps restant : remplissage qui se vide de droite à gauche
+    AjouterRectangleArrondi(transformation, {badge.left, badge.top, badge.width * ratio, badge.height}, rayon,
+                            Attenuer(sf::Color(couleur.r, couleur.g, couleur.b, 70), fondu));
+    // Éclair blanc à chaque nouveau palier
+    AjouterRectangleArrondi(transformation, badge, rayon,
+                            Attenuer(sf::Color(255, 255, 255, 200), std::exp(-14.f * tempsCombo) * fondu));
     cible.draw(formes);
+
+    const auto alpha = static_cast<sf::Uint8>(255.f * fondu);
+    texteComboLabel.setFillColor(sf::Color(220, 220, 220, alpha));
+    PlacerTexte(texteComboLabel, 11, transformation.transformPoint(-30.f, 0.f), echelle, zoom);
+    cible.draw(texteComboLabel);
+
+    texteCombo.setFillColor(sf::Color(couleur.r, couleur.g, couleur.b, alpha));
+    PlacerTexte(texteCombo, 18, transformation.transformPoint(40.f, 0.f), echelle, zoom);
+    cible.draw(texteCombo);
 }
