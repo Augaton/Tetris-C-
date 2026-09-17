@@ -14,6 +14,13 @@
 #include <iostream>
 #include <optional>
 
+#ifdef _WIN32
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+#  include <windows.h>
+#endif
+
 namespace {
 
 // Touches tenues, avec répétition gérée par le jeu (la répétition du système est désactivée)
@@ -33,6 +40,25 @@ struct Controles {
         (dir < 0 ? gaucheTenue : droiteTenue) = true;
         direction = dir;
         horizontal.Appuyer();
+    }
+
+    // Après une pause : reprend en compte les touches encore enfoncées (leurs appuis ont été
+    // reçus par le menu), pour que la pièce reparte sans devoir relâcher puis réappuyer.
+    void Resynchroniser(const Reglages& r) {
+        const auto tenue = [&](Action action) {
+            for (int code : r.Touches(action))
+                if (code >= 0 && code < sf::Keyboard::KeyCount &&
+                    sf::Keyboard::isKeyPressed(static_cast<sf::Keyboard::Key>(code)))
+                    return true;
+            return false;
+        };
+        const bool gauche = tenue(Action::Gauche);
+        const bool droite = tenue(Action::Droite);
+        if (droite) Presser(1);
+        if (gauche && !droite) Presser(-1);
+        gaucheTenue = gauche;
+        droiteTenue = droite;
+        if (tenue(Action::DescenteDouce)) descente.Appuyer();
     }
 
     void Lacher(int dir) {
@@ -65,6 +91,7 @@ Menu::Choix JouerPartie(Application& app, Menu& menu, Rendu& rendu, const std::f
         controles = Controles(app.reglages);
         jeu.DefinirDelaiVerrouillage(static_cast<float>(app.reglages.verrouillageMs) / 1000.f);
         menu.CompteARebours(app.Capturer(dessiner));
+        controles.Resynchroniser(app.reglages);
         horloge.restart();
     };
 
@@ -137,14 +164,14 @@ Menu::Choix JouerPartie(Application& app, Menu& menu, Rendu& rendu, const std::f
         app.Afficher();
     }
 
-    if (!app.fenetre.isOpen()) return Menu::Choix::Quitter;
-
+    // Enregistré même si la fenêtre a été fermée en pleine partie
     const bool nouveauRecord = jeu.Score() > record;
     if (nouveauRecord) {
         record = jeu.Score();
         if (!meilleur_score::Sauvegarder(cheminRecord, record))
             std::cerr << "Impossible d'enregistrer le meilleur score dans " << cheminRecord.string() << '\n';
     }
+    if (!app.fenetre.isOpen()) return Menu::Choix::Quitter;
 
     return menu.Perdu(app.Capturer(dessiner), jeu.Score(), record, nouveauRecord);
 }
@@ -152,6 +179,11 @@ Menu::Choix JouerPartie(Application& app, Menu& menu, Rendu& rendu, const std::f
 } // namespace
 
 int main() {
+#ifdef _WIN32
+    // Retire le dossier courant de la recherche des DLL (détournement de DLL)
+    SetDllDirectoryW(L"");
+#endif
+
     Application app;
     if (!app.Initialiser()) return EXIT_FAILURE;
 

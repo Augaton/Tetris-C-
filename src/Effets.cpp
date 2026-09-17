@@ -48,7 +48,8 @@ Effets::Effets(const sf::Font& police) {
     particules.reserve(MAX_PARTICULES);
     eclats.reserve(MAX_ECLATS);
     trainees.reserve(MAX_TRAINEES);
-    sommets.resize(0);
+    sommets.resize(4 * (MAX_PARTICULES + MAX_ECLATS + MAX_TRAINEES));
+    sommets.clear(); // garde la capacité : aucune réallocation en jeu
     for (TexteFlottant& t : textes) {
         t.texte.setFont(police);
         t.texte.setStyle(sf::Text::Bold);

@@ -84,6 +84,8 @@ void Reglages::ReinitialiserOptions() {
     descenteDouceMs = defaut.descenteDouceMs;
     verrouillageMs = defaut.verrouillageMs;
     fantome = defaut.fantome;
+    mouvementsFluides = defaut.mouvementsFluides;
+    synchroVerticale = defaut.synchroVerticale;
     effets = defaut.effets;
     secousses = defaut.secousses;
     pleinEcran = defaut.pleinEcran;
@@ -125,6 +127,8 @@ Reglages Analyser(const std::string& contenu, const Reglages& defauts, const Nom
         else if (cle == "descente_douce_ms") nombre(r.descenteDouceMs, Reglages::BORNES_DESCENTE);
         else if (cle == "verrouillage_ms") nombre(r.verrouillageMs, Reglages::BORNES_VERROUILLAGE);
         else if (cle == "fantome") booleen(r.fantome);
+        else if (cle == "mouvements_fluides") booleen(r.mouvementsFluides);
+        else if (cle == "synchro_verticale") booleen(r.synchroVerticale);
         else if (cle == "effets") booleen(r.effets);
         else if (cle == "secousses") booleen(r.secousses);
         else if (cle == "plein_ecran") booleen(r.pleinEcran);
@@ -163,6 +167,8 @@ std::string Serialiser(const Reglages& r, const CodeVersNom& nomTouche) {
            << "descente_douce_ms = " << r.descenteDouceMs << '\n'
            << "verrouillage_ms = " << r.verrouillageMs << '\n'
            << "fantome = " << (r.fantome ? "oui" : "non") << '\n'
+           << "mouvements_fluides = " << (r.mouvementsFluides ? "oui" : "non") << '\n'
+           << "synchro_verticale = " << (r.synchroVerticale ? "oui" : "non") << '\n'
            << "effets = " << (r.effets ? "oui" : "non") << '\n'
            << "secousses = " << (r.secousses ? "oui" : "non") << '\n'
            << "plein_ecran = " << (r.pleinEcran ? "oui" : "non") << '\n'

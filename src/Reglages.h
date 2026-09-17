@@ -41,6 +41,8 @@ struct Reglages {
     int descenteDouceMs = 50;
     int verrouillageMs = 500;
     bool fantome = true;
+    bool mouvementsFluides = true; // la pièce glisse d'une case à l'autre au lieu de sauter
+    bool synchroVerticale = true;  // désactivée : latence plus faible, déchirures possibles
     bool effets = true;    // particules, éclats, textes flottants
     bool secousses = true; // tremblement du plateau (désactivable pour le confort visuel)
     bool pleinEcran = false;

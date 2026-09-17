@@ -1,5 +1,6 @@
 #include "Ressources.h"
 
+#include <cstdint>
 #include <iostream>
 #include <system_error>
 #include <vector>
@@ -56,9 +57,18 @@ std::optional<fs::path> Trouver(const std::string& nom) {
     }
     std::error_code erreur;
 
+    // Au-delà, un fichier n'est pas un asset du jeu (image piégée, « bombe » de décompression...)
+    constexpr std::uintmax_t TAILLE_MAX = 32 * 1024 * 1024;
+
     for (const fs::path& dossier : dossiers) {
         fs::path candidat = dossier / nom;
-        if (fs::is_regular_file(candidat, erreur)) return candidat;
+        if (!fs::is_regular_file(candidat, erreur)) continue;
+        const std::uintmax_t taille = fs::file_size(candidat, erreur);
+        if (erreur || taille == 0 || taille > TAILLE_MAX) {
+            std::cerr << "Ressource ignorée (taille invalide) : " << candidat.string() << '\n';
+            continue;
+        }
+        return candidat;
     }
 
     if (exe.empty()) std::cerr << "Impossible de déterminer le dossier de l'exécutable\n";

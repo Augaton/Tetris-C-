@@ -275,7 +275,7 @@ Menu::Choix Menu::Principal(long long meilleurScore) {
 }
 
 void Menu::Options(const DessinFond& fond) {
-    Liste liste(app, 122.f, 38.f, 22, 640.f);
+    Liste liste(app, 112.f, 34.f, 20, 640.f);
     Reglages& r = app.reglages;
 
     while (app.fenetre.isOpen()) {
@@ -299,21 +299,27 @@ void Menu::Options(const DessinFond& fond) {
                 case 2: Ajuster(r.descenteDouceMs, Reglages::BORNES_DESCENTE, delta, boucler); break;
                 case 3: Ajuster(r.verrouillageMs, Reglages::BORNES_VERROUILLAGE, delta, boucler); break;
                 case 4: r.fantome = !r.fantome; break;
-                case 5: r.effets = !r.effets; break;
-                case 6: r.secousses = !r.secousses; break;
-                case 7:
+                case 5: r.mouvementsFluides = !r.mouvementsFluides; break;
+                case 6: r.effets = !r.effets; break;
+                case 7: r.secousses = !r.secousses; break;
+                case 8:
+                    r.synchroVerticale = !r.synchroVerticale;
+                    app.AppliquerSynchroVerticale();
+                    break;
+                case 9:
                     r.pleinEcran = !r.pleinEcran;
                     app.AppliquerPleinEcran();
                     break;
-                case 8:
+                case 10:
                     if (res.activee < 0) break;
                     {
                         const bool pleinEcranAvant = r.pleinEcran;
                         r.ReinitialiserOptions();
                         if (r.pleinEcran != pleinEcranAvant) app.AppliquerPleinEcran();
+                        else app.AppliquerSynchroVerticale();
                     }
                     break;
-                case 9:
+                case 11:
                     if (res.activee < 0) break;
                     app.SauverReglages();
                     return;
@@ -328,8 +334,10 @@ void Menu::Options(const DessinFond& fond) {
             Utf8("Descente rapide : ") + Duree(r.descenteDouceMs, "instantanée"),
             Utf8("Délai de verrouillage : ") + Duree(r.verrouillageMs, "aucun"),
             Utf8("Pièce fantôme : ") + OuiNon(r.fantome),
+            Utf8("Mouvements fluides : ") + OuiNon(r.mouvementsFluides),
             Utf8("Effets visuels : ") + OuiNon(r.effets),
             Utf8("Secousses du plateau : ") + OuiNon(r.secousses),
+            Utf8("Synchro verticale : ") + OuiNon(r.synchroVerticale),
             Utf8("Plein écran : ") + OuiNon(r.pleinEcran),
             Utf8("Valeurs par défaut"),
             Utf8("Retour"),
@@ -337,7 +345,7 @@ void Menu::Options(const DessinFond& fond) {
 
         app.fenetre.clear(COULEUR_FOND);
         fond();
-        DessinerTexte(Utf8("Options"), 40, 60.f);
+        DessinerTexte(Utf8("Options"), 40, 55.f);
         liste.Dessiner(texte);
         DessinerTexte(Utf8("↑↓ choisir · ←→ ou molette modifier · Échap retour"), 15, 520.f, GRIS);
         app.Afficher();

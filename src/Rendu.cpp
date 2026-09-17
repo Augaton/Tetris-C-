@@ -25,7 +25,13 @@ const sf::FloatRect ZONE_COMMANDES(630.f, 382.f, 222.f, 116.f);
 } // namespace
 
 Rendu::Rendu(const sf::Texture& tuiles, const sf::Texture& fondTexture, const sf::Font& police)
-    : tuiles(tuiles), fond(fondTexture) {
+    : tuiles(tuiles), police(police), fond(fondTexture) {
+    // Capacité réservée une fois : plus de réallocation pendant la partie
+    sommets.resize(4 * (cst::LARGEUR * cst::HAUTEUR + 16));
+    sommets.clear();
+    formes.resize(4 * 8);
+    formes.clear();
+
     auto preparer = [&](sf::Text& t) {
         t.setFont(police);
         t.setFillColor(sf::Color::White);
@@ -46,7 +52,39 @@ Rendu::Rendu(const sf::Texture& tuiles, const sf::Texture& fondTexture, const sf
     masqueCommandes.setFillColor(COULEUR_PANNEAU);
 }
 
+void Rendu::PrechargerGlyphes(float echelle) {
+    echellePrechargee = echelle;
+    static const std::string caracteres = "0123456789+ !ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    const float contour = 2.f * echelle;
+    // Tailles logiques des textes de la partie : nombres, combo, textes flottants
+    const struct {
+        unsigned taille;
+        bool avecContour;
+    } styles[] = {{20, false}, {25, true}, {18, true}, {22, true}, {28, true}, {30, true}};
+
+    for (const auto& style : styles) {
+        const unsigned taille =
+            std::max(1u, static_cast<unsigned>(std::lround(static_cast<float>(style.taille) * echelle)));
+        for (char c : caracteres) {
+            police.getGlyph(static_cast<sf::Uint32>(c), taille, true, 0.f);
+            if (style.avecContour) police.getGlyph(static_cast<sf::Uint32>(c), taille, true, contour);
+        }
+    }
+}
+
+void Rendu::AjouterRectangle(const sf::Transform& transformation, sf::FloatRect zone, sf::Color couleur) {
+    const sf::Vector2f coins[] = {
+        {zone.left, zone.top},
+        {zone.left + zone.width, zone.top},
+        {zone.left + zone.width, zone.top + zone.height},
+        {zone.left, zone.top + zone.height},
+    };
+    for (const sf::Vector2f& coin : coins) formes.append(sf::Vertex(transformation.transformPoint(coin), couleur));
+}
+
 void Rendu::AjouterTuile(int couleur, sf::Vector2f pos, sf::Color teinte) {
+    couleur = std::clamp(couleur, 0, 7); // jamais de coordonnées hors de la texture
     const float t = static_cast<float>(cst::TUILE);
     const float u = t * static_cast<float>(couleur);
     sommets.append(sf::Vertex(pos, teinte, {u, 0.f}));
@@ -120,6 +158,7 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
                      Effets& effets) {
     const float dt = std::clamp(temps - dernierTemps, 0.f, 0.1f);
     dernierTemps = temps;
+    if (echelle != echellePrechargee) PrechargerGlyphes(echelle);
 
     cible.draw(fond);
 
@@ -136,17 +175,31 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
             if (grille[y][x] != 0) AjouterTuile(grille[y][x], PositionCase(x, y));
 
     if (!jeu.Perdu()) {
+        // Mouvements fluides : la pièce affichée rattrape sa case en ~0,1 s. Nouvelle pièce ou grand saut
+        // (répétition instantanée, garde) : placement direct pour ne jamais donner d'impression de retard.
+        const sf::Vector2f position(static_cast<float>(jeu.PieceX()), static_cast<float>(jeu.PieceY()));
+        const sf::Vector2f ecart = position - positionAffichee;
+        if (!reglages.mouvementsFluides || &jeu != jeuSuivi || jeu.NumeroPiece() != numeroSuivi ||
+            std::abs(ecart.x) > 2.f || std::abs(ecart.y) > 2.f)
+            positionAffichee = position;
+        else
+            positionAffichee += ecart * (1.f - std::exp(-40.f * dt));
+        jeuSuivi = &jeu;
+        numeroSuivi = jeu.NumeroPiece();
+        const sf::Vector2f decalage = (positionAffichee - position) * static_cast<float>(cst::TUILE);
+
         const int couleur = piece::Couleur(jeu.PieceActive());
         if (reglages.fantome) {
-            // Fantôme qui respire légèrement
+            // Fantôme qui respire légèrement ; il suit la pièce horizontalement
             const auto alpha = static_cast<sf::Uint8>(90.f + (reglages.effets ? 25.f * std::sin(temps * 5.f) : 0.f));
-            for (const Case& c : jeu.CasesFantome()) AjouterTuile(couleur, PositionCase(c.x, c.y), sf::Color(255, 255, 255, alpha));
+            for (const Case& c : jeu.CasesFantome())
+                AjouterTuile(couleur, PositionCase(c.x, c.y) + sf::Vector2f(decalage.x, 0.f), sf::Color(255, 255, 255, alpha));
         }
 
         // La pièce s'assombrit pendant le délai de verrouillage
         const auto luminosite = static_cast<sf::Uint8>(255.f - 100.f * jeu.ProgressionVerrouillage());
         const sf::Color teinte(luminosite, luminosite, luminosite);
-        for (const Case& c : jeu.CasesPiece()) AjouterTuile(couleur, PositionCase(c.x, c.y), teinte);
+        for (const Case& c : jeu.CasesPiece()) AjouterTuile(couleur, PositionCase(c.x, c.y) + decalage, teinte);
     }
 
     plateau.texture = &tuiles;
@@ -200,44 +253,33 @@ void Rendu::DessinerCombo(sf::RenderTarget& cible, const Jeu& jeu, float temps, 
     texteCombo.setRotation(angle);
     cible.draw(texteCombo);
 
-    // Barre de temps restant
+    // Barre de temps restant : quelques quads tournés, un seul appel de dessin
     const float ratio = std::clamp(jeu.ComboRestant() / cst::COMBO_DUREE_S, 0.f, 1.f);
     const float largeur = 140.f;
     const float hauteur = 8.f;
-    const float radians = angle * 3.14159f / 180.f;
-    const sf::Vector2f centre = Vers(cst::BARRE_COMBO);
+    const float bord = 1.5f;
 
-    sf::RectangleShape barre(sf::Vector2f(largeur, hauteur));
-    barre.setOrigin(largeur / 2.f, hauteur / 2.f);
-    barre.setPosition(centre);
-    barre.setRotation(angle);
-    barre.setFillColor(sf::Color(0, 0, 0, 150));
-    barre.setOutlineThickness(1.5f);
-    barre.setOutlineColor(sf::Color(255, 255, 255, 80));
-    cible.draw(barre);
+    sf::Transform transformation;
+    transformation.translate(Vers(cst::BARRE_COMBO)).rotate(angle);
 
-    if (ratio <= 0.01f) return;
+    formes.clear();
+    const sf::Color couleurBord(255, 255, 255, 80);
+    const float gauche = -largeur / 2.f, haut = -hauteur / 2.f;
+    AjouterRectangle(transformation, {gauche, haut, largeur, hauteur}, sf::Color(0, 0, 0, 150));
+    AjouterRectangle(transformation, {gauche - bord, haut - bord, largeur + 2.f * bord, bord}, couleurBord);
+    AjouterRectangle(transformation, {gauche - bord, haut + hauteur, largeur + 2.f * bord, bord}, couleurBord);
+    AjouterRectangle(transformation, {gauche - bord, haut, bord, hauteur}, couleurBord);
+    AjouterRectangle(transformation, {gauche + largeur, haut, bord, hauteur}, couleurBord);
 
-    // Bord gauche de la barre, en tenant compte de la rotation
-    const sf::Vector2f gauche(centre.x - (largeur / 2.f) * std::cos(radians),
-                              centre.y - (largeur / 2.f) * std::sin(radians));
+    if (ratio > 0.01f) {
+        sf::Color couleur;
+        if (ratio > 0.5f)      couleur = sf::Color(0, 255, 150);
+        else if (ratio > 0.2f) couleur = sf::Color(255, 200, 0);
+        else                   couleur = sf::Color(255, 50, 50);
 
-    sf::Color couleur;
-    if (ratio > 0.5f)      couleur = sf::Color(0, 255, 150);
-    else if (ratio > 0.2f) couleur = sf::Color(255, 200, 0);
-    else                   couleur = sf::Color(255, 50, 50);
-
-    sf::RectangleShape remplissage(sf::Vector2f(largeur * ratio, hauteur));
-    remplissage.setOrigin(0.f, hauteur / 2.f);
-    remplissage.setPosition(gauche);
-    remplissage.setRotation(angle);
-    remplissage.setFillColor(couleur);
-    cible.draw(remplissage);
-
-    sf::RectangleShape brillance(sf::Vector2f(largeur * ratio, hauteur / 2.f));
-    brillance.setOrigin(0.f, hauteur / 4.f);
-    brillance.setPosition(gauche);
-    brillance.setRotation(angle);
-    brillance.setFillColor(sf::Color(255, 255, 255, 50));
-    cible.draw(brillance);
+        AjouterRectangle(transformation, {gauche, haut, largeur * ratio, hauteur}, couleur);
+        AjouterRectangle(transformation, {gauche, -hauteur / 4.f, largeur * ratio, hauteur / 2.f},
+                         sf::Color(255, 255, 255, 50));
+    }
+    cible.draw(formes);
 }

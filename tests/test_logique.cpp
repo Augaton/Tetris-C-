@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <random>
 #include <set>
 #include <string>
 #include <utility>
@@ -156,6 +157,19 @@ void TestGravite() {
     jeu.MettreAJour(jeu.IntervalleGravite());
     VERIFIER(MinY(jeu.CasesPiece()) == y + 1);
     VERIFIER(jeu.IntervalleGravite() < 1.f);
+
+    // Cadence régulière : à 60 images/s, 30 intervalles de gravité donnent bien ~30 cases de chute
+    Jeu regulier(3);
+    const int depart = MinY(regulier.CasesPiece());
+    const float intervalle = regulier.IntervalleGravite();
+    const int images = static_cast<int>(std::lround(intervalle * 12.f * 60.f)); // 12 intervalles
+    for (int i = 0; i < images; i++) regulier.MettreAJour(1.f / 60.f);
+    VERIFIER(MinY(regulier.CasesPiece()) - depart >= 11);
+
+    // Le numéro de pièce change à chaque apparition (animation du rendu)
+    const int numero = regulier.NumeroPiece();
+    regulier.ChuteRapide();
+    VERIFIER(regulier.NumeroPiece() == numero + 1);
 }
 
 void TestRepetition() {
@@ -256,6 +270,9 @@ void TestReglages() {
     const Reglages relu = reglages::Analyser(reglages::Serialiser(r, NomTest), Reglages{}, CodeTest);
     VERIFIER(relu.dasMs == r.dasMs && relu.arrMs == r.arrMs && relu.fantome == r.fantome);
     VERIFIER(relu.effets == r.effets && relu.secousses == r.secousses);
+    VERIFIER(relu.mouvementsFluides == r.mouvementsFluides && relu.synchroVerticale == r.synchroVerticale);
+    const Reglages desactives = reglages::Analyser("mouvements_fluides = non\nsynchro_verticale = 0\n", Reglages{}, CodeTest);
+    VERIFIER(!desactives.mouvementsFluides && !desactives.synchroVerticale);
     VERIFIER(relu.touches == r.touches);
 
     // Une touche ne peut servir qu'à une action
@@ -263,6 +280,37 @@ void TestReglages() {
     conflit.AssignerTouche(Action::Droite, 1);
     VERIFIER(conflit.Touches(Action::Droite)[0] == 1 && conflit.Touches(Action::Droite)[1] == 2);
     VERIFIER(conflit.Touches(Action::Gauche)[0] == 3 && conflit.Touches(Action::Gauche)[1] == AUCUNE_TOUCHE);
+}
+
+// Contenus aléatoires (valides ou non) : jamais de plantage, valeurs toujours bornées, touches sans doublon
+void TestAnalyseRobuste() {
+    std::mt19937 rng(20260917);
+    const std::string alphabet = std::string("=,#._- \t\r\n0123456789abcdefghijklmnopqrstuvwxyzLPARight") +
+                                 std::string("\0\xff\xc3\xa9", 4);
+    const char* debuts[] = {"das_ms = ", "arr_ms =", "touche.gauche = ", "touche.pause=", "fantome = ", "verrouillage_ms = -"};
+
+    for (int essai = 0; essai < 3000; essai++) {
+        std::string contenu;
+        const int lignes = static_cast<int>(rng() % 12);
+        for (int l = 0; l < lignes; l++) {
+            if (rng() % 2) contenu += debuts[rng() % 6];
+            const int longueur = static_cast<int>(rng() % 40);
+            for (int c = 0; c < longueur; c++) contenu += alphabet[rng() % alphabet.size()];
+            contenu += '\n';
+        }
+
+        const Reglages r = reglages::Analyser(contenu, Reglages{}, CodeTest);
+        VERIFIER(r.dasMs == Reglages::BORNES_DAS.Limiter(r.dasMs));
+        VERIFIER(r.arrMs == Reglages::BORNES_ARR.Limiter(r.arrMs));
+        VERIFIER(r.descenteDouceMs == Reglages::BORNES_DESCENTE.Limiter(r.descenteDouceMs));
+        VERIFIER(r.verrouillageMs == Reglages::BORNES_VERROUILLAGE.Limiter(r.verrouillageMs));
+
+        std::map<int, int> utilisations;
+        for (const auto& touchesAction : r.touches)
+            for (int code : touchesAction)
+                if (code != AUCUNE_TOUCHE) utilisations[code]++;
+        for (const auto& [code, nombre] : utilisations) VERIFIER(nombre == 1 && code >= 1 && code <= 4);
+    }
 }
 
 void TestMeilleurScore() {
@@ -308,6 +356,7 @@ int main() {
     TestRepetition();
     TestDelaiVerrouillage();
     TestReglages();
+    TestAnalyseRobuste();
     TestMeilleurScore();
 
     if (echecs == 0) std::cout << "Tous les tests passent\n";

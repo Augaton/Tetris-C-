@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 Jeu::Jeu(unsigned graine, const Grille& depart) : grille(depart), sac(graine) {
     evenements.reserve(32);
@@ -13,6 +14,12 @@ Jeu::Jeu(unsigned graine, const Grille& depart) : grille(depart), sac(graine) {
 void Jeu::Signaler(const EvenementJeu& evenement) {
     if (evenements.size() >= 32) evenements.erase(evenements.begin()); // personne ne les lit (tests)
     evenements.push_back(evenement);
+}
+
+void Jeu::AjouterScore(long long points) {
+    // Saturation plutôt que dépassement (comportement indéfini) sur une partie interminable
+    const long long maximum = std::numeric_limits<long long>::max();
+    score = (points > 0 && score > maximum - points) ? maximum : score + points;
 }
 
 Cases Jeu::Placer(const EtatPiece& piece) {
@@ -65,6 +72,7 @@ Cases Jeu::CasesFantome() const {
 
 void Jeu::Apparaitre(TypePiece type) {
     active = {type, 0, piece::ColonneDepart(type), 0};
+    numeroPiece++;
     chronoGravite = 0.f;
     chronoVerrouillage = 0.f;
     reinitialisations = 0;
@@ -89,7 +97,7 @@ bool Jeu::DescenteDouce() {
     if (!Libre(Placer(essai))) return false;
     active = essai;
     ApresMouvement();
-    score += niveau + 1;
+    AjouterScore(niveau + 1);
     chronoGravite = 0.f;
     return true;
 }
@@ -104,7 +112,7 @@ void Jeu::ChuteRapide() {
         distance++;
     }
     active.y += distance;
-    score += 2LL * std::max(1, niveau) * distance;
+    AjouterScore(2LL * std::max(1, niveau) * distance);
 
     EvenementJeu chute{EvenementJeu::Type::ChuteRapide};
     chute.cases = CasesPiece();
@@ -168,9 +176,12 @@ void Jeu::MettreAJour(float dt) {
     }
 
     chronoVerrouillage = 0.f;
+    // On garde le reste du chrono : cadence de chute régulière, indépendante de la fréquence d'images
+    const float intervalle = IntervalleGravite();
     chronoGravite += dt;
-    if (chronoGravite < IntervalleGravite()) return;
-    chronoGravite = 0.f;
+    if (chronoGravite < intervalle) return;
+    chronoGravite -= intervalle;
+    if (chronoGravite >= intervalle) chronoGravite = 0.f; // jamais plus d'une case par image
 
     active.y++;
     ApresMouvement();
@@ -259,5 +270,5 @@ void Jeu::AjouterLignes(int nombre) {
     combo++;
     comboRestant = cst::COMBO_DUREE_S;
 
-    score += nombre * 100 + 100 * (nombre - 1) + combo * 50;
+    AjouterScore(nombre * 100LL + 100LL * (nombre - 1) + combo * 50LL);
 }

@@ -25,12 +25,13 @@ public:
 
     // (Re)crée la fenêtre en plein écran ou en fenêtré selon reglages.pleinEcran
     void AppliquerPleinEcran();
+    void AppliquerSynchroVerticale();
 
     // Fermeture, redimensionnement et F11 (plein écran). Renvoie true si l'événement est traité.
     bool GererEvenement(const sf::Event& evenement);
 
-    // Affiche l'image. Si la synchro verticale est ignorée par le pilote, limite la cadence
-    // (~300 images/s, 30 sans le focus) pour ne pas occuper un cœur du processeur à 100 %.
+    // Affiche l'image. Limite la cadence (~300 images/s, 30 sans le focus) si la synchro verticale
+    // est désactivée ou ignorée par le pilote, pour ne pas occuper un cœur du processeur à 100 %.
     void Afficher();
 
     // Pixels à l'écran par unité logique

@@ -26,13 +26,23 @@ private:
     };
 
     const sf::Texture& tuiles;
+    const sf::Font& police;
     sf::Sprite fond;
     sf::RectangleShape limite;
     sf::RectangleShape masqueCommandes;
     sf::VertexArray sommets{sf::Quads}; // tuiles regroupées : un appel de dessin pour le plateau, un pour les aperçus
 
+    sf::VertexArray formes{sf::Quads};  // barre du combo, sans RectangleShape recréées à chaque image
+
     float dernierTemps = 0.f;
     double scoreAffiche = 0.0;
+
+    // Mouvements fluides : position affichée de la pièce (en cases), qui rattrape la position réelle
+    sf::Vector2f positionAffichee;
+    int numeroSuivi = -1;
+    const Jeu* jeuSuivi = nullptr;
+
+    float echellePrechargee = 0.f;
 
     Nombre score, lignes, niveau;
     sf::Text texteCombo;
@@ -42,6 +52,9 @@ private:
     Reglages::TableTouches touchesAffichees = Reglages::TouchesVides();
     float echelleCommandes = 0.f;
 
+    // Rastérise à l'avance les glyphes utilisés en partie : pas d'à-coup au premier combo ou texte flottant
+    void PrechargerGlyphes(float echelle);
+    void AjouterRectangle(const sf::Transform& transformation, sf::FloatRect zone, sf::Color couleur);
     void AjouterTuile(int couleur, sf::Vector2f position, sf::Color teinte = sf::Color::White);
     void AjouterApercu(std::optional<TypePiece> type, cst::Point centre, sf::Color teinte);
     void DessinerNombre(sf::RenderTarget& cible, Nombre& nombre, long long valeur, cst::Point centre, float echelle);

@@ -56,6 +56,10 @@ public:
     Cases CasesPiece() const;
     Cases CasesFantome() const;
     TypePiece PieceActive() const { return active.type; }
+    // Position de la boîte de rotation, et numéro qui change à chaque nouvelle pièce (animation du rendu)
+    int PieceX() const { return active.x; }
+    int PieceY() const { return active.y; }
+    int NumeroPiece() const { return numeroPiece; }
     TypePiece PieceSuivante() const { return suivante; }
     std::optional<TypePiece> PieceGardee() const { return garde; }
     bool GardeUtilisee() const { return gardeUtilisee; }
@@ -85,6 +89,7 @@ private:
     bool gardeUtilisee = false;
 
     long long score = 0;
+    int numeroPiece = 0;
     int niveau = 0;
     int lignes = 0;
     int combo = 0;
@@ -103,6 +108,7 @@ private:
     std::vector<EvenementJeu> evenements;
 
     void Signaler(const EvenementJeu& evenement);
+    void AjouterScore(long long points);
     static Cases Placer(const EtatPiece& piece);
     bool Libre(const Cases& cases) const;
     bool AuSol() const;

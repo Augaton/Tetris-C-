@@ -24,14 +24,23 @@ namespace fichiers {
 fs::path DossierDonnees() {
     fs::path base;
 #ifdef _WIN32
-    const wchar_t* appdata = _wgetenv(L"APPDATA");
-    if (appdata && *appdata) base = appdata;
+    // API Windows plutôt que _wgetenv (dépréciée) ; longueur demandée d'abord
+    const DWORD longueur = GetEnvironmentVariableW(L"APPDATA", nullptr, 0);
+    if (longueur > 1 && longueur < 32768) {
+        std::wstring appdata(longueur, L'\0');
+        const DWORD copies = GetEnvironmentVariableW(L"APPDATA", appdata.data(), longueur);
+        if (copies > 0 && copies < longueur) {
+            appdata.resize(copies);
+            if (fs::path(appdata).is_absolute()) base = appdata;
+        }
+    }
 #else
+    // Chemins relatifs refusés : ils dépendraient du dossier depuis lequel le jeu est lancé
     const char* xdg = std::getenv("XDG_DATA_HOME");
     const char* home = std::getenv("HOME");
     if (xdg && *xdg && fs::path(xdg).is_absolute()) {
         base = xdg;
-    } else if (home && *home) {
+    } else if (home && *home && fs::path(home).is_absolute()) {
 #  ifdef __APPLE__
         base = fs::path(home) / "Library" / "Application Support";
 #  else

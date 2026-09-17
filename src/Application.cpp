@@ -21,6 +21,17 @@ bool Application::Initialiser() {
         !ressources::Charger(fondMenu, "Fond.png"))
         return false;
 
+    // Refuse des assets remplacés par des images trop petites ou démesurées
+    const unsigned maxTexture = sf::Texture::getMaximumSize();
+    const auto tailleValide = [&](const sf::Texture& t, unsigned minX, unsigned minY) {
+        return t.getSize().x >= minX && t.getSize().y >= minY && t.getSize().x <= maxTexture && t.getSize().y <= maxTexture;
+    };
+    if (!tailleValide(tuiles, 8 * cst::TUILE, cst::TUILE) || !tailleValide(fondJeu, cst::FENETRE_LARGEUR, cst::FENETRE_HAUTEUR) ||
+        !tailleValide(logo, 1, 1) || !tailleValide(fondMenu, 1, 1)) {
+        std::cerr << "Assets invalides : dimensions inattendues\n";
+        return false;
+    }
+
     // Lissage pour les grandes images mises à l'échelle ; pas pour les tuiles (bords nets, pas de débordement)
     fondJeu.setSmooth(true);
     logo.setSmooth(true);
@@ -56,9 +67,13 @@ void Application::AppliquerPleinEcran() {
             fenetre.setPosition({static_cast<int>(bureau.width - largeur) / 2, static_cast<int>(bureau.height - hauteur) / 2});
     }
 
-    fenetre.setVerticalSyncEnabled(true);
+    AppliquerSynchroVerticale();
     fenetre.setKeyRepeatEnabled(false); // la répétition est gérée par le jeu (DAS/ARR)
     AjusterVue();
+}
+
+void Application::AppliquerSynchroVerticale() {
+    fenetre.setVerticalSyncEnabled(reglages.synchroVerticale);
 }
 
 void Application::AjusterVue() {
