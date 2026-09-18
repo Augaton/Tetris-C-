@@ -4,11 +4,51 @@
 #include <cmath>
 #include <limits>
 
-Jeu::Jeu(unsigned graine, const Grille& depart) : grille(depart), sac(graine) {
+Jeu::Jeu(unsigned graine, const Grille& depart, ParametresPartie parametresPartie)
+    : grille(depart), parametres(parametresPartie), graine(graine), sac(graine) {
     evenements.reserve(32);
+    parametres.niveauDepart = std::clamp(parametres.niveauDepart, 0, mode::NIVEAU_DEPART_MAX);
+    if (parametres.mode == Mode::Marathon) niveau = parametres.niveauDepart;
     TypePiece premiere = sac.Tirer();
     suivante = sac.Tirer();
     Apparaitre(premiere);
+}
+
+void Jeu::ActiverEnregistrement() {
+    enregistrer = true;
+    journal = {graine, parametres, {}, true};
+    journal.commandes.reserve(1 << 14);
+    Noter(Commande::Type::DelaiVerrouillage, 0, delaiVerrouillage);
+}
+
+void Jeu::Noter(Commande::Type type, int argument, float valeur) {
+    if (!enregistrer) return;
+    if (journal.commandes.size() >= JOURNAL_MAX) {
+        journal.complet = false;
+        return;
+    }
+    journal.commandes.push_back({type, static_cast<std::int8_t>(argument), valeur});
+}
+
+void Jeu::Rejouer(const Commande& c) {
+    switch (c.type) {
+        case Commande::Type::Deplacer:          Deplacer(c.argument); break;
+        case Commande::Type::DescenteDouce:     DescenteDouce(); break;
+        case Commande::Type::ChuteRapide:       ChuteRapide(); break;
+        case Commande::Type::Tourner:           Tourner(c.argument != 0); break;
+        case Commande::Type::Garder:            Garder(); break;
+        case Commande::Type::Temps:             MettreAJour(c.valeur); break;
+        case Commande::Type::DelaiVerrouillage: DefinirDelaiVerrouillage(c.valeur); break;
+    }
+}
+
+void Jeu::DefinirDelaiVerrouillage(float secondes) {
+    delaiVerrouillage = secondes < 0.f ? 0.f : secondes;
+    Noter(Commande::Type::DelaiVerrouillage, 0, delaiVerrouillage);
+}
+
+float Jeu::TempsRestant() const {
+    return parametres.mode == Mode::Ultra ? std::max(0.f, mode::ULTRA_DUREE_S - temps) : 0.f;
 }
 
 void Jeu::Signaler(const EvenementJeu& evenement) {
@@ -81,7 +121,8 @@ void Jeu::Apparaitre(TypePiece type) {
 }
 
 bool Jeu::Deplacer(int dx) {
-    if (perdu) return false;
+    Noter(Commande::Type::Deplacer, dx);
+    if (Fini()) return false;
     EtatPiece essai = active;
     essai.x += dx;
     if (!Libre(Placer(essai))) return false;
@@ -91,7 +132,8 @@ bool Jeu::Deplacer(int dx) {
 }
 
 bool Jeu::DescenteDouce() {
-    if (perdu) return false;
+    Noter(Commande::Type::DescenteDouce);
+    if (Fini()) return false;
     EtatPiece essai = active;
     essai.y++;
     if (!Libre(Placer(essai))) return false;
@@ -103,7 +145,8 @@ bool Jeu::DescenteDouce() {
 }
 
 void Jeu::ChuteRapide() {
-    if (perdu) return;
+    Noter(Commande::Type::ChuteRapide);
+    if (Fini()) return;
     int distance = 0;
     EtatPiece essai = active;
     while (true) {
@@ -124,7 +167,8 @@ void Jeu::ChuteRapide() {
 }
 
 bool Jeu::Tourner(bool horaire) {
-    if (perdu || active.type == TypePiece::O) return false;
+    Noter(Commande::Type::Tourner, horaire ? 1 : 0);
+    if (Fini() || active.type == TypePiece::O) return false;
 
     EtatPiece tourne = active;
     tourne.rotation = (active.rotation + (horaire ? 1 : 3)) % 4;
@@ -143,7 +187,8 @@ bool Jeu::Tourner(bool horaire) {
 }
 
 void Jeu::Garder() {
-    if (perdu || gardeUtilisee) return;
+    Noter(Commande::Type::Garder);
+    if (Fini() || gardeUtilisee) return;
     gardeUtilisee = true;
 
     TypePiece courante = active.type;
@@ -157,7 +202,15 @@ void Jeu::Garder() {
 }
 
 void Jeu::MettreAJour(float dt) {
-    if (perdu) return;
+    Noter(Commande::Type::Temps, 0, dt);
+    if (Fini()) return;
+
+    temps += dt;
+    if (parametres.mode == Mode::Ultra && temps >= mode::ULTRA_DUREE_S) {
+        temps = mode::ULTRA_DUREE_S;
+        objectifAtteint = true;
+        return;
+    }
 
     if (combo > 0) {
         comboRestant -= dt;
@@ -176,6 +229,8 @@ void Jeu::MettreAJour(float dt) {
     }
 
     chronoVerrouillage = 0.f;
+    if (parametres.mode == Mode::Zen) return; // pas de gravité : la pièce ne descend que si on le demande
+
     // On garde le reste du chrono : cadence de chute régulière, indépendante de la fréquence d'images
     const float intervalle = IntervalleGravite();
     chronoGravite += dt;
@@ -188,7 +243,7 @@ void Jeu::MettreAJour(float dt) {
 }
 
 float Jeu::ProgressionVerrouillage() const {
-    if (perdu || delaiVerrouillage <= 0.f || !AuSol()) return 0.f;
+    if (Fini() || delaiVerrouillage <= 0.f || !AuSol()) return 0.f;
     return std::min(1.f, chronoVerrouillage / delaiVerrouillage);
 }
 
@@ -200,6 +255,7 @@ float Jeu::IntervalleGravite() const {
 void Jeu::Verrouiller() {
     const int couleur = piece::Couleur(active.type);
     for (const Case& c : CasesPiece()) grille[c.y][c.x] = couleur;
+    stats.pieces++;
 
     EvenementJeu verrou{EvenementJeu::Type::Verrouillage};
     verrou.cases = CasesPiece();
@@ -230,14 +286,23 @@ void Jeu::Verrouiller() {
         Signaler(passage);
     }
 
-    // Perdu s'il reste un bloc au-dessus de la ligne limite
-    for (int y = 0; y < cst::LIGNES_ZONE_LIMITE; y++) {
-        for (int valeur : grille[y]) {
-            if (valeur != 0) {
-                perdu = true;
-                return;
-            }
+    if (parametres.mode == Mode::Sprint && lignes >= parametres.sprintLignes) {
+        objectifAtteint = true;
+        return;
+    }
+
+    // Perdu s'il reste un bloc au-dessus de la ligne limite ; en Zen, la pile est vidée à la place
+    bool depasse = false;
+    for (int y = 0; y < cst::LIGNES_ZONE_LIMITE && !depasse; y++)
+        for (int valeur : grille[y])
+            if (valeur != 0) depasse = true;
+    if (depasse) {
+        if (parametres.mode != Mode::Zen) {
+            perdu = true;
+            return;
         }
+        for (auto& ligne : grille) ligne.fill(0);
+        Signaler({EvenementJeu::Type::Nettoyage});
     }
 
     gardeUtilisee = false;
@@ -265,10 +330,14 @@ int Jeu::EffacerLignes() {
 
 void Jeu::AjouterLignes(int nombre) {
     lignes += nombre;
-    niveau = std::min(cst::NIVEAU_MAX, lignes / cst::LIGNES_PAR_NIVEAU);
+    // Seul le Marathon monte de niveau ; les autres modes gardent une gravité constante
+    if (parametres.mode == Mode::Marathon)
+        niveau = std::min(cst::NIVEAU_MAX, parametres.niveauDepart + lignes / cst::LIGNES_PAR_NIVEAU);
 
     combo++;
     comboRestant = cst::COMBO_DUREE_S;
+    stats.lignesParType[static_cast<size_t>(std::clamp(nombre, 1, 4) - 1)]++;
+    stats.comboMax = std::max(stats.comboMax, combo);
 
     AjouterScore(nombre * 100LL + 100LL * (nombre - 1) + combo * 50LL);
 }

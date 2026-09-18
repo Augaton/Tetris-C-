@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Jeu.h"
+#include "Reglages.h"
 
 #include <SFML/Graphics.hpp>
 #include <array>
@@ -13,7 +14,7 @@ class Effets {
 public:
     explicit Effets(const sf::Font& police);
 
-    void Traiter(const std::vector<EvenementJeu>& evenements, bool effetsActifs, bool secoussesActives);
+    void Traiter(const std::vector<EvenementJeu>& evenements, const Reglages& reglages);
     void MettreAJour(float dt);
 
     // « NOUVEAU RECORD ! » quand le meilleur score est dépassé en cours de partie

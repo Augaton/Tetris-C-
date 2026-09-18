@@ -1,4 +1,5 @@
 // Tests de la logique du jeu, sans fenêtre ni SFML
+#include "Classements.h"
 #include "Jeu.h"
 #include "MeilleurScore.h"
 #include "Piece.h"
@@ -271,7 +272,23 @@ void TestReglages() {
     VERIFIER(relu.dasMs == r.dasMs && relu.arrMs == r.arrMs && relu.fantome == r.fantome);
     VERIFIER(relu.effets == r.effets && relu.secousses == r.secousses);
     VERIFIER(relu.mouvementsFluides == r.mouvementsFluides && relu.synchroVerticale == r.synchroVerticale);
-    const Reglages desactives = reglages::Analyser("mouvements_fluides = non\nsynchro_verticale = 0\n", Reglages{}, CodeTest);
+    const Reglages desactives = reglages::Analyser("mouvements_fluides = non\nsynchro_verticale = 0\nlimite_images = 144\n", Reglages{}, CodeTest);
+    VERIFIER(desactives.limiteImages == 144);
+    VERIFIER(reglages::Analyser("limite_images = 5\n", Reglages{}, CodeTest).limiteImages == 30);   // trop bas : relevé
+    VERIFIER(reglages::Analyser("limite_images = 99999\n", Reglages{}, CodeTest).limiteImages == 500);
+    VERIFIER(reglages::Analyser("limite_images = 0\n", Reglages{}, CodeTest).limiteImages == 0);
+
+    // Manette, accessibilité, langue, mode : lecture et aller-retour
+    const Reglages divers = reglages::Analyser("manette.gauche = Right, A\ndaltonien = oui\nmotifs = oui\ntaille_texte = 120\n"
+                                               "langue = en\nmode = sprint\nniveau_depart = 50\nrotation_anticipee = oui\n",
+                                               Reglages{}, CodeTest);
+    VERIFIER(divers.Boutons(Action::Gauche)[0] == 2 && divers.Boutons(Action::Gauche)[1] == 3);
+    VERIFIER(divers.ActionDe(3) == Action::Gauche); // trouvé dans la table de la manette
+    VERIFIER(divers.daltonien && divers.motifs && divers.tailleTexte == 115 && divers.rotationAnticipee);
+    VERIFIER(divers.langue == Langue::Anglais && divers.mode == Mode::Sprint && divers.niveauDepart == mode::NIVEAU_DEPART_MAX);
+    const Reglages diversRelu = reglages::Analyser(reglages::Serialiser(divers, NomTest), Reglages{}, CodeTest);
+    VERIFIER(diversRelu.manette == divers.manette && diversRelu.langue == divers.langue && diversRelu.mode == divers.mode);
+    VERIFIER(diversRelu.tailleTexte == divers.tailleTexte && diversRelu.niveauDepart == divers.niveauDepart);
     VERIFIER(!desactives.mouvementsFluides && !desactives.synchroVerticale);
     VERIFIER(relu.touches == r.touches);
 
@@ -310,6 +327,145 @@ void TestAnalyseRobuste() {
             for (int code : touchesAction)
                 if (code != AUCUNE_TOUCHE) utilisations[code]++;
         for (const auto& [code, nombre] : utilisations) VERIFIER(nombre == 1 && code >= 1 && code <= 4);
+    }
+}
+
+void TestModes() {
+    // Sprint : terminé dès l'objectif atteint (ici 1 ligne), plus aucune action ensuite
+    Jeu::Grille grille{};
+    for (int x = 0; x < cst::LARGEUR; x++)
+        if (x < 3 || x > 6) grille[cst::HAUTEUR - 1][x] = 1;
+    ParametresPartie sprint{Mode::Sprint, 0, 1};
+    unsigned graine = 0;
+    while (Jeu(graine, grille, sprint).PieceActive() != TypePiece::I) graine++;
+    Jeu jeuSprint(graine, grille, sprint);
+    jeuSprint.MettreAJour(0.5f);
+    jeuSprint.ChuteRapide();
+    VERIFIER(jeuSprint.ObjectifAtteint() && jeuSprint.Fini() && !jeuSprint.Perdu());
+    VERIFIER(!jeuSprint.Deplacer(1));
+    const float tempsFinal = jeuSprint.Temps();
+    jeuSprint.MettreAJour(1.f);
+    VERIFIER(jeuSprint.Temps() == tempsFinal); // chronomètre arrêté
+    VERIFIER(jeuSprint.Stats().pieces == 1 && jeuSprint.Stats().lignesParType[0] == 1);
+
+    // Ultra : terminé au bout de 2 minutes
+    // (un seul appel avance la gravité d'une case au plus : la pile n'a pas le temps de monter)
+    Jeu ultra(2, ParametresPartie{Mode::Ultra});
+    ultra.MettreAJour(119.5f);
+    VERIFIER(!ultra.Fini() && ultra.TempsRestant() > 0.4f);
+    ultra.MettreAJour(1.f);
+    VERIFIER(ultra.ObjectifAtteint() && ultra.TempsRestant() == 0.f && ultra.Temps() == mode::ULTRA_DUREE_S);
+
+    // Zen : pas de gravité, et la pile est vidée au lieu de perdre
+    Jeu zen(3, ParametresPartie{Mode::Zen});
+    const int y = MinY(zen.CasesPiece());
+    zen.MettreAJour(30.f);
+    VERIFIER(MinY(zen.CasesPiece()) == y);
+    Jeu::Grille haute{};
+    for (int yy = cst::LIGNES_ZONE_LIMITE; yy < cst::HAUTEUR; yy++)
+        for (int x = 0; x < cst::LARGEUR - 1; x++) haute[yy][x] = 1;
+    Jeu zenPlein(1, haute, ParametresPartie{Mode::Zen});
+    zenPlein.ChuteRapide();
+    VERIFIER(!zenPlein.Fini() && CasesOccupees(zenPlein) == 0);
+    bool nettoyage = false;
+    for (const auto& e : zenPlein.Evenements()) nettoyage |= e.type == EvenementJeu::Type::Nettoyage;
+    VERIFIER(nettoyage);
+
+    // Marathon : niveau de départ, gravité plus rapide
+    Jeu rapide(4, ParametresPartie{Mode::Marathon, 5});
+    VERIFIER(rapide.Niveau() == 5 && rapide.IntervalleGravite() < Jeu(4).IntervalleGravite());
+    VERIFIER(Jeu(4, ParametresPartie{Mode::Marathon, 999}).Niveau() == mode::NIVEAU_DEPART_MAX);
+}
+
+void TestRejouer() {
+    // Une partie jouée au hasard, rejouée depuis son journal, doit donner exactement le même résultat
+    std::mt19937 rng(77);
+    Jeu original(1234, ParametresPartie{Mode::Marathon, 3});
+    original.ActiverEnregistrement();
+    for (int i = 0; i < 4000 && !original.Fini(); i++) {
+        switch (rng() % 8) {
+            case 0: original.Deplacer(-1); break;
+            case 1: original.Deplacer(1); break;
+            case 2: original.Tourner(rng() % 2 == 0); break;
+            case 3: original.DescenteDouce(); break;
+            case 4: if (rng() % 10 == 0) original.ChuteRapide(); break;
+            case 5: if (rng() % 20 == 0) original.Garder(); break;
+            case 6: if (rng() % 50 == 0) original.DefinirDelaiVerrouillage(0.1f * static_cast<float>(rng() % 6)); break;
+            default: break;
+        }
+        original.MettreAJour(1.f / 60.f + static_cast<float>(rng() % 5) * 0.001f);
+    }
+
+    const Enregistrement& journal = original.Journal();
+    VERIFIER(journal.complet && journal.commandes.size() > 500);
+    Jeu copie(journal.graine, journal.parametres);
+    for (const Commande& c : journal.commandes) copie.Rejouer(c);
+
+    VERIFIER(copie.Score() == original.Score());
+    VERIFIER(copie.Lignes() == original.Lignes());
+    VERIFIER(copie.Plateau() == original.Plateau());
+    VERIFIER(copie.Temps() == original.Temps());
+    VERIFIER(copie.Perdu() == original.Perdu());
+    VERIFIER(copie.Stats().pieces == original.Stats().pieces);
+    VERIFIER(original.Stats().pieces > 5);
+}
+
+void TestClassements() {
+    Classements c;
+    for (int i = 1; i <= 12; i++) c.Ajouter(Mode::Marathon, {i * 100LL, i, 1000, ""});
+    VERIFIER(c.Table(Mode::Marathon).size() == Classements::TAILLE);
+    VERIFIER(c.Premier(Mode::Marathon)->score == 1200);
+    VERIFIER(c.Table(Mode::Marathon).back().score == 300);
+    VERIFIER(c.Ajouter(Mode::Marathon, {50, 0, 0, ""}) == -1);       // trop faible
+    VERIFIER(c.Ajouter(Mode::Marathon, {5000, 0, 0, ""}) == 0);       // nouveau premier
+
+    // Sprint : le temps le plus court gagne
+    c.Ajouter(Mode::Sprint, {0, 40, 90000, "2026-09-18 10:00"});
+    VERIFIER(c.Ajouter(Mode::Sprint, {0, 40, 60000, "2026-09-18 10:05"}) == 0);
+    VERIFIER(c.Premier(Mode::Sprint)->tempsMs == 60000);
+    VERIFIER(c.Premier(Mode::Ultra) == nullptr);
+
+    // Aller-retour par le fichier, et lignes invalides ignorées
+    const std::string texte = c.Serialiser() + "sprint;0;40;-5;\n" + "ultra;abc;1;1;\n" + "zen;10;1;1;2026-09-18 <script>\n" +
+                              "inconnu;1;1;1;\n" + "marathon;1\n" + "zen;7;1;1\n";
+    const Classements relu = Classements::Analyser(texte);
+    VERIFIER(relu.Table(Mode::Marathon).size() == Classements::TAILLE);
+    VERIFIER(relu.Premier(Mode::Marathon)->score == 5000);
+    VERIFIER(relu.Table(Mode::Sprint).size() == 2 && relu.Premier(Mode::Sprint)->date == "2026-09-18 10:05");
+    VERIFIER(relu.Table(Mode::Ultra).empty());
+    VERIFIER(relu.Table(Mode::Zen).size() == 1 && relu.Premier(Mode::Zen)->score == 7);
+
+    const std::string date = classements::DateActuelle();
+    VERIFIER(date.size() == 16 && date[4] == '-' && date[13] == ':');
+}
+
+// Fichiers de classement corrompus ou hostiles : jamais de plantage, tables toujours triées, bornées
+// et sans valeur négative ni date douteuse
+void TestClassementsRobustes() {
+    std::mt19937 rng(424242);
+    const std::string alphabet = std::string("marathonsprintultrazen;;;;0123456789-: \n\n#<>\\") + std::string("\0\xff\xe9", 3);
+    const char* debuts[] = {"marathon;", "sprint;", "ultra;", "zen;", "sprint;0;40;", "marathon;99999999999999999999;"};
+
+    for (int essai = 0; essai < 3000; essai++) {
+        std::string contenu;
+        const int lignes = static_cast<int>(rng() % 30);
+        for (int l = 0; l < lignes; l++) {
+            if (rng() % 2) contenu += debuts[rng() % 6];
+            const int longueur = static_cast<int>(rng() % 50);
+            for (int c = 0; c < longueur; c++) contenu += alphabet[rng() % alphabet.size()];
+            contenu += '\n';
+        }
+
+        const Classements c = Classements::Analyser(contenu);
+        for (int m = 0; m < NB_MODES; m++) {
+            const Mode mode = static_cast<Mode>(m);
+            const auto& table = c.Table(mode);
+            VERIFIER(table.size() <= Classements::TAILLE);
+            for (size_t i = 0; i < table.size(); i++) {
+                VERIFIER(table[i].score >= 0 && table[i].lignes >= 0 && table[i].tempsMs >= 0 && table[i].date.size() <= 16);
+                if (i > 0) VERIFIER(!Classements::Meilleure(mode, table[i], table[i - 1]));
+            }
+        }
     }
 }
 
@@ -357,6 +513,10 @@ int main() {
     TestDelaiVerrouillage();
     TestReglages();
     TestAnalyseRobuste();
+    TestModes();
+    TestRejouer();
+    TestClassements();
+    TestClassementsRobustes();
     TestMeilleurScore();
 
     if (echecs == 0) std::cout << "Tous les tests passent\n";

@@ -31,6 +31,22 @@ std::optional<int> Entier(const std::string& texte) {
     return valeur;
 }
 
+void Assigner(Reglages::TableTouches& table, Action action, int code) {
+    if (code == AUCUNE_TOUCHE) return;
+
+    for (auto& touchesAction : table) {
+        for (int& t : touchesAction) {
+            if (t == code) t = AUCUNE_TOUCHE;
+        }
+        // Garde la principale remplie si seule la secondaire reste
+        if (touchesAction[0] == AUCUNE_TOUCHE) std::swap(touchesAction[0], touchesAction[1]);
+    }
+
+    auto& cible = table[static_cast<size_t>(action)];
+    cible[1] = cible[0];
+    cible[0] = code;
+}
+
 std::optional<bool> Booleen(const std::string& texte) {
     if (texte == "oui" || texte == "1" || texte == "true") return true;
     if (texte == "non" || texte == "0" || texte == "false") return false;
@@ -46,34 +62,35 @@ Reglages::TableTouches Reglages::TouchesVides() {
 }
 
 const std::array<int, TOUCHES_PAR_ACTION>& Reglages::Touches(Action action) const {
-    return touches[static_cast<int>(action)];
+    return touches[static_cast<size_t>(action)];
+}
+
+const std::array<int, TOUCHES_PAR_ACTION>& Reglages::Boutons(Action action) const {
+    return manette[static_cast<size_t>(action)];
 }
 
 void Reglages::AssignerTouche(Action action, int code) {
-    if (code == AUCUNE_TOUCHE) return;
+    Assigner(touches, action, code);
+}
 
-    for (auto& touchesAction : touches) {
-        for (int& t : touchesAction) {
-            if (t == code) t = AUCUNE_TOUCHE;
-        }
-        // Garde la principale remplie si seule la secondaire reste
-        if (touchesAction[0] == AUCUNE_TOUCHE) std::swap(touchesAction[0], touchesAction[1]);
-    }
-
-    auto& cible = touches[static_cast<int>(action)];
-    cible[1] = cible[0];
-    cible[0] = code;
+void Reglages::AssignerBouton(Action action, int code) {
+    Assigner(manette, action, code);
 }
 
 void Reglages::EffacerTouches(Action action) {
-    touches[static_cast<int>(action)].fill(AUCUNE_TOUCHE);
+    touches[static_cast<size_t>(action)].fill(AUCUNE_TOUCHE);
+}
+
+void Reglages::EffacerBoutons(Action action) {
+    manette[static_cast<size_t>(action)].fill(AUCUNE_TOUCHE);
 }
 
 std::optional<Action> Reglages::ActionDe(int code) const {
     if (code == AUCUNE_TOUCHE) return std::nullopt;
-    for (int a = 0; a < NB_ACTIONS; a++)
-        for (int t : touches[a])
-            if (t == code) return static_cast<Action>(a);
+    for (const TableTouches* table : {&touches, &manette})
+        for (int a = 0; a < NB_ACTIONS; a++)
+            for (int t : (*table)[static_cast<size_t>(a)])
+                if (t == code) return static_cast<Action>(a);
     return std::nullopt;
 }
 
@@ -86,9 +103,14 @@ void Reglages::ReinitialiserOptions() {
     fantome = defaut.fantome;
     mouvementsFluides = defaut.mouvementsFluides;
     synchroVerticale = defaut.synchroVerticale;
+    limiteImages = defaut.limiteImages;
     effets = defaut.effets;
     secousses = defaut.secousses;
     pleinEcran = defaut.pleinEcran;
+    rotationAnticipee = defaut.rotationAnticipee;
+    daltonien = defaut.daltonien;
+    motifs = defaut.motifs;
+    tailleTexte = defaut.tailleTexte;
 }
 
 namespace reglages {
@@ -129,11 +151,33 @@ Reglages Analyser(const std::string& contenu, const Reglages& defauts, const Nom
         else if (cle == "fantome") booleen(r.fantome);
         else if (cle == "mouvements_fluides") booleen(r.mouvementsFluides);
         else if (cle == "synchro_verticale") booleen(r.synchroVerticale);
+        else if (cle == "limite_images") {
+            nombre(r.limiteImages, Reglages::BORNES_LIMITE_IMAGES);
+            if (r.limiteImages > 0 && r.limiteImages < 30) r.limiteImages = 30; // pas de jeu injouable
+        }
         else if (cle == "effets") booleen(r.effets);
         else if (cle == "secousses") booleen(r.secousses);
         else if (cle == "plein_ecran") booleen(r.pleinEcran);
-        else if (cle.rfind("touche.", 0) == 0) {
-            const std::string id = cle.substr(7);
+        else if (cle == "rotation_anticipee") booleen(r.rotationAnticipee);
+        else if (cle == "daltonien") booleen(r.daltonien);
+        else if (cle == "motifs") booleen(r.motifs);
+        else if (cle == "taille_texte") {
+            nombre(r.tailleTexte, Reglages::BORNES_TAILLE_TEXTE);
+            // Aligné sur les paliers proposés dans le jeu
+            const Bornes& b = Reglages::BORNES_TAILLE_TEXTE;
+            r.tailleTexte = b.min + (r.tailleTexte - b.min) / b.pas * b.pas;
+        }
+        else if (cle == "langue") {
+            if (valeur == "fr") r.langue = Langue::Francais;
+            else if (valeur == "en") r.langue = Langue::Anglais;
+        }
+        else if (cle == "mode") {
+            if (auto m = mode::DepuisIdentifiant(valeur)) r.mode = *m;
+        }
+        else if (cle == "niveau_depart") nombre(r.niveauDepart, Bornes{0, mode::NIVEAU_DEPART_MAX, 1});
+        else if (cle.rfind("touche.", 0) == 0 || cle.rfind("manette.", 0) == 0) {
+            const bool estManette = cle[0] == 'm';
+            const std::string id = cle.substr(estManette ? 8 : 7);
             for (int a = 0; a < NB_ACTIONS; a++) {
                 if (id != IDENTIFIANTS[a]) continue;
 
@@ -147,10 +191,11 @@ Reglages Analyser(const std::string& contenu, const Reglages& defauts, const Nom
                 if (!valeur.empty() && codes.empty()) break;
 
                 const Action action = static_cast<Action>(a);
-                r.EffacerTouches(action);
-                // En ordre inverse : la première touche listée devient la principale
+                Reglages::TableTouches& table = estManette ? r.manette : r.touches;
+                table[static_cast<size_t>(a)].fill(AUCUNE_TOUCHE);
+                // En ordre inverse : la première listée devient la principale
                 for (int i = std::min<int>(static_cast<int>(codes.size()), TOUCHES_PAR_ACTION) - 1; i >= 0; i--)
-                    r.AssignerTouche(action, codes[i]);
+                    Assigner(table, action, codes[static_cast<size_t>(i)]);
                 break;
             }
         }
@@ -169,21 +214,33 @@ std::string Serialiser(const Reglages& r, const CodeVersNom& nomTouche) {
            << "fantome = " << (r.fantome ? "oui" : "non") << '\n'
            << "mouvements_fluides = " << (r.mouvementsFluides ? "oui" : "non") << '\n'
            << "synchro_verticale = " << (r.synchroVerticale ? "oui" : "non") << '\n'
+           << "limite_images = " << r.limiteImages << "  # 0 = automatique\n"
            << "effets = " << (r.effets ? "oui" : "non") << '\n'
            << "secousses = " << (r.secousses ? "oui" : "non") << '\n'
            << "plein_ecran = " << (r.pleinEcran ? "oui" : "non") << '\n'
-           << "\n# Touches : jusqu'à " << TOUCHES_PAR_ACTION << " par action, séparées par des virgules\n";
+           << "rotation_anticipee = " << (r.rotationAnticipee ? "oui" : "non") << '\n'
+           << "daltonien = " << (r.daltonien ? "oui" : "non") << '\n'
+           << "motifs = " << (r.motifs ? "oui" : "non") << '\n'
+           << "taille_texte = " << r.tailleTexte << '\n'
+           << "langue = " << (r.langue == Langue::Anglais ? "en" : "fr") << '\n'
+           << "mode = " << mode::Identifiant(r.mode) << '\n'
+           << "niveau_depart = " << r.niveauDepart << '\n'
+           << "\n# Touches et boutons : jusqu'à " << TOUCHES_PAR_ACTION << " par action, séparés par des virgules\n";
 
-    for (int a = 0; a < NB_ACTIONS; a++) {
-        sortie << "touche." << IDENTIFIANTS[a] << " =";
-        bool premiere = true;
-        for (int code : r.touches[a]) {
-            if (code == AUCUNE_TOUCHE) continue;
-            sortie << (premiere ? " " : ", ") << nomTouche(code);
-            premiere = false;
+    auto ecrireTable = [&](const char* prefixe, const Reglages::TableTouches& table) {
+        for (int a = 0; a < NB_ACTIONS; a++) {
+            sortie << prefixe << IDENTIFIANTS[static_cast<size_t>(a)] << " =";
+            bool premiere = true;
+            for (int code : table[static_cast<size_t>(a)]) {
+                if (code == AUCUNE_TOUCHE) continue;
+                sortie << (premiere ? " " : ", ") << nomTouche(code);
+                premiere = false;
+            }
+            sortie << '\n';
         }
-        sortie << '\n';
-    }
+    };
+    ecrireTable("touche.", r.touches);
+    ecrireTable("manette.", r.manette);
     return sortie.str();
 }
 

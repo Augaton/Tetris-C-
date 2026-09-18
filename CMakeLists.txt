@@ -13,6 +13,7 @@ endif()
 option(TETRIS_SFML_STATIQUE "Lier SFML en statique (utile sous Windows)" OFF)
 option(TETRIS_SANITIZERS "Activer AddressSanitizer et UBSan (GCC/Clang)" OFF)
 option(TETRIS_TESTS "Compiler les tests de la logique" ON)
+option(TETRIS_NATIF "Optimiser pour le processeur de cette machine (-march=native) : binaire non portable" OFF)
 option(TETRIS_DURCISSEMENT "Options de compilation durcies (protection de pile, vérifications de la bibliothèque standard...)" ON)
 
 if(TETRIS_SFML_STATIQUE)
@@ -22,7 +23,10 @@ find_package(SFML 2.5 COMPONENTS graphics window system REQUIRED)
 
 include(CheckPIESupported)
 check_pie_supported()
+include(CheckIPOSupported)
+check_ipo_supported(RESULT TETRIS_LTO OUTPUT TETRIS_LTO_ERREUR LANGUAGES CXX)
 include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag(-march=native TETRIS_MARCH_NATIVE)
 check_cxx_compiler_flag(-fstack-clash-protection TETRIS_STACK_CLASH)
 check_cxx_compiler_flag(-fcf-protection TETRIS_CF_PROTECTION)
 
@@ -34,6 +38,14 @@ if((CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_
 endif()
 
 function(tetris_options cible)
+    # Optimisation à l'édition de liens : le compilateur voit tout le programme d'un coup
+    if(TETRIS_LTO)
+        set_property(TARGET ${cible} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+        set_property(TARGET ${cible} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO TRUE)
+    endif()
+    if(TETRIS_NATIF AND TETRIS_MARCH_NATIVE)
+        target_compile_options(${cible} PRIVATE -march=native)
+    endif()
     if(MSVC)
         target_compile_options(${cible} PRIVATE /W4 /guard:cf)
         target_link_options(${cible} PRIVATE /guard:cf /DYNAMICBASE /NXCOMPAT)
@@ -64,9 +76,11 @@ endfunction()
 
 # Logique du jeu, sans SFML : testable sans fenêtre
 add_library(tetris_logique STATIC
+    src/Classements.cpp
     src/Fichiers.cpp
     src/Jeu.cpp
     src/MeilleurScore.cpp
+    src/Mode.cpp
     src/Piece.cpp
     src/Reglages.cpp
     src/Repetition.cpp
@@ -78,8 +92,11 @@ tetris_options(tetris_logique)
 add_executable(Tetris WIN32
     src/Application.cpp
     src/Effets.cpp
+    src/Formes.cpp
     src/main.cpp
+    src/Manette.cpp
     src/Menu.cpp
+    src/Palette.cpp
     src/Rendu.cpp
     src/Ressources.cpp
     src/Texte.cpp

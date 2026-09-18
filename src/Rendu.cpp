@@ -1,6 +1,7 @@
 #include "Rendu.h"
 
 #include "Application.h"
+#include "Formes.h"
 #include "Texte.h"
 #include "Touches.h"
 
@@ -8,6 +9,7 @@
 #include <climits>
 #include <cmath>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -24,22 +26,52 @@ const sf::Uint32 SIGNE_FOIS = 0xD7; // « × »
 // Zone du panneau « Command » de FondPrincipal.png où la liste des touches est redessinée
 const sf::FloatRect ZONE_COMMANDES(630.f, 382.f, 222.f, 116.f);
 
+// Cadres des titres de FondPrincipal.png (bordure comprise) : Gardé, Suivant, Lignes, Niveau
+const std::array<sf::FloatRect, 4> CADRES_TITRES = {{
+    {102.f, 87.f, 114.f, 50.f}, {678.f, 25.f, 114.f, 50.f}, {86.f, 277.f, 143.f, 39.f}, {87.f, 402.f, 143.f, 39.f},
+}};
+
+// Motifs d'accessibilité, en coordonnées locales d'une tuile de 18 px
+using Quad = std::array<sf::Vector2f, 4>;
+
+Quad Rect(float x, float y, float l, float h) {
+    return {{{x, y}, {x + l, y}, {x + l, y + h}, {x, y + h}}};
+}
+
+const std::vector<Quad>& Motif(int tuile) {
+    static const std::array<std::vector<Quad>, 8> motifs = {{
+        {},
+        {Rect(6, 6, 6, 6)},                                                            // T : carré plein
+        {Rect(4, 8, 10, 2)},                                                           // Z : barre horizontale
+        {Rect(8, 4, 2, 10)},                                                           // S : barre verticale
+        {Rect(4, 4, 10, 2), Rect(4, 12, 10, 2), Rect(4, 6, 2, 6), Rect(12, 6, 2, 6)}, // O : carré creux
+        {Rect(4, 7.5f, 3, 3), Rect(11, 7.5f, 3, 3)},                                   // I : deux points
+        {Rect(4, 8, 10, 2), Rect(8, 4, 2, 4), Rect(8, 10, 2, 4)},                      // L : plus
+        {Quad{{{4, 5}, {5, 4}, {14, 13}, {13, 14}}}, Quad{{{13, 4}, {14, 5}, {5, 14}, {4, 13}}}}, // J : croix
+    }};
+    return motifs[static_cast<size_t>(std::clamp(tuile, 0, 7))];
+}
+
 } // namespace
 
-Rendu::Rendu(const sf::Texture& tuiles, const sf::Texture& fondTexture, const sf::Font& police)
-    : tuiles(tuiles), police(police), fond(fondTexture) {
+Rendu::Rendu(const sf::Texture& tuiles, const sf::Texture& tuilesDaltonien, const sf::Texture& fondTexture,
+             const sf::Font& police)
+    : tuiles(tuiles), tuilesDaltonien(tuilesDaltonien), police(police), fond(fondTexture) {
     // Capacité réservée une fois : plus de réallocation pendant la partie
     sommets.resize(4 * (cst::LARGEUR * cst::HAUTEUR + 16));
     sommets.clear();
     formes.resize(6 * 24 * 5);
     formes.clear();
+    motifs.resize(4 * 4 * (cst::LARGEUR * cst::HAUTEUR + 16));
+    motifs.clear();
 
     auto preparer = [&](sf::Text& t) {
         t.setFont(police);
         t.setFillColor(sf::Color::White);
         t.setStyle(sf::Text::Bold);
     };
-    for (Nombre* n : {&score, &lignes, &niveau}) preparer(n->texte);
+    for (TexteCache* c : {&score, &lignes, &niveau, &piedMode}) preparer(c->texte);
+    for (TexteCache& c : etiquettes) preparer(c.texte);
     for (sf::Text& t : texteCommandes) preparer(t);
     preparer(texteCombo);
     preparer(texteComboLabel);
@@ -58,9 +90,10 @@ Rendu::Rendu(const sf::Texture& tuiles, const sf::Texture& fondTexture, const sf
 
 void Rendu::PrechargerGlyphes(float echelle) {
     echellePrechargee = echelle;
-    static const std::string ascii = "0123456789+ !ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static const std::string ascii = "0123456789+ !,.:/-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     std::basic_string<sf::Uint32> caracteres(ascii.begin(), ascii.end());
     caracteres.push_back(SIGNE_FOIS);
+    caracteres.push_back(0xA0); // espace insécable des nombres
 
     const float contour = 2.f * echelle;
     // Tailles logiques des textes de la partie : nombres, combo, textes flottants
@@ -81,39 +114,10 @@ void Rendu::PrechargerGlyphes(float echelle) {
 
 void Rendu::AjouterRectangleArrondi(const sf::Transform& transformation, sf::FloatRect zone, float rayon,
                                     sf::Color couleur) {
-    if (zone.width <= 0.f || zone.height <= 0.f || couleur.a == 0) return;
-    rayon = std::min({rayon, zone.width / 2.f, zone.height / 2.f});
-
-    // Éventail de triangles autour du centre : 4 arcs de SEGMENTS segments chacun
-    const int SEGMENTS = 5;
-    const float droite = zone.left + zone.width, bas = zone.top + zone.height;
-    const sf::Vector2f centresArcs[4] = {
-        {droite - rayon, zone.top + rayon}, {droite - rayon, bas - rayon},
-        {zone.left + rayon, bas - rayon},   {zone.left + rayon, zone.top + rayon},
-    };
-    const sf::Vector2f centre = transformation.transformPoint(zone.left + zone.width / 2.f, zone.top + zone.height / 2.f);
-
-    sf::Vector2f premier, precedent;
-    for (int arc = 0; arc < 4; arc++) {
-        for (int i = 0; i <= SEGMENTS; i++) {
-            const float angle = (-90.f + 90.f * (static_cast<float>(arc) + static_cast<float>(i) / SEGMENTS)) * 3.14159265f / 180.f;
-            const sf::Vector2f point = transformation.transformPoint(centresArcs[arc] + sf::Vector2f(std::cos(angle), std::sin(angle)) * rayon);
-            if (arc == 0 && i == 0) {
-                premier = point;
-            } else {
-                formes.append(sf::Vertex(centre, couleur));
-                formes.append(sf::Vertex(precedent, couleur));
-                formes.append(sf::Vertex(point, couleur));
-            }
-            precedent = point;
-        }
-    }
-    formes.append(sf::Vertex(centre, couleur));
-    formes.append(sf::Vertex(precedent, couleur));
-    formes.append(sf::Vertex(premier, couleur));
+    formes::AjouterRectangleArrondi(formes, zone, rayon, couleur, transformation);
 }
 
-void Rendu::AjouterTuile(int couleur, sf::Vector2f pos, sf::Color teinte) {
+void Rendu::AjouterTuile(int couleur, sf::Vector2f pos, sf::Color teinte, bool avecMotif) {
     couleur = std::clamp(couleur, 0, 7); // jamais de coordonnées hors de la texture
     const float t = static_cast<float>(cst::TUILE);
     const float u = t * static_cast<float>(couleur);
@@ -121,6 +125,11 @@ void Rendu::AjouterTuile(int couleur, sf::Vector2f pos, sf::Color teinte) {
     sommets.append(sf::Vertex({pos.x + t, pos.y}, teinte, {u + t, 0.f}));
     sommets.append(sf::Vertex({pos.x + t, pos.y + t}, teinte, {u + t, t}));
     sommets.append(sf::Vertex({pos.x, pos.y + t}, teinte, {u, t}));
+
+    if (!motifsActifs || !avecMotif) return;
+    const sf::Color encre(0, 0, 0, static_cast<sf::Uint8>(teinte.a * 120 / 255));
+    for (const Quad& q : Motif(couleur))
+        for (const sf::Vector2f& point : q) motifs.append(sf::Vertex(pos + point, encre));
 }
 
 void Rendu::AjouterApercu(std::optional<TypePiece> type, cst::Point centre, sf::Color teinte) {
@@ -146,31 +155,96 @@ void Rendu::AjouterApercu(std::optional<TypePiece> type, cst::Point centre, sf::
     }
 }
 
-void Rendu::DessinerNombre(sf::RenderTarget& cible, Nombre& nombre, long long valeur, cst::Point centre,
-                           float echelle) {
-    if (valeur != nombre.valeur || echelle != nombre.echelle) {
-        nombre.valeur = valeur;
-        nombre.echelle = echelle;
-        nombre.texte.setString(std::to_string(valeur));
-        PlacerTexteBorne(nombre.texte, 20, Vers(centre), echelle, 160.f);
+void Rendu::DessinerTexte(sf::RenderTarget& cible, TexteCache& cache, const sf::String& chaine, unsigned taille,
+                          sf::Vector2f centre, float echelle, float largeurMax, sf::Color couleur) {
+    if (chaine != cache.chaine || echelle != cache.echelle) {
+        cache.chaine = chaine;
+        cache.echelle = echelle;
+        cache.texte.setString(chaine);
+        PlacerTexteBorne(cache.texte, taille, centre, echelle, largeurMax);
     }
-    cible.draw(nombre.texte);
+    cache.texte.setFillColor(couleur);
+    cible.draw(cache.texte);
+}
+
+void Rendu::DessinerInfos(sf::RenderTarget& cible, const Jeu& jeu, long long scoreAffichage, float echelle) {
+    const ParametresPartie& p = jeu.Parametres();
+    const bool anglais = LangueActuelle() == Langue::Anglais;
+
+    // Titres de FondPrincipal.png : traduits en anglais, et « Niveau » remplacé selon le mode
+    std::array<sf::String, 4> titres;
+    if (anglais) titres = {Utf8("Hold"), Utf8("Next"), Utf8("Lines"), Utf8("Level")};
+    if (p.mode == Mode::Sprint || p.mode == Mode::Ultra) titres[3] = TrU("Temps", "Time");
+    if (p.mode == Mode::Zen) titres[3] = TrU("Pièces", "Pieces");
+    for (size_t i = 0; i < titres.size(); i++) {
+        if (titres[i].isEmpty()) continue;
+        const sf::FloatRect& c = CADRES_TITRES[i];
+        sf::RectangleShape masque({c.width - 4.f, c.height - 4.f});
+        masque.setPosition(c.left + 2.f, c.top + 2.f);
+        masque.setFillColor(COULEUR_PANNEAU);
+        cible.draw(masque);
+        DessinerTexte(cible, etiquettes[i], titres[i], 21, {c.left + c.width / 2.f, c.top + c.height / 2.f}, echelle,
+                      c.width - 12.f);
+    }
+
+    // Valeurs des panneaux
+    const sf::Color dore(255, 204, 0);
+    const bool recordBattu = record > 0 && jeu.Score() > record;
+    DessinerTexte(cible, score, Utf8(FormaterNombre(scoreAffichage)), 20, Vers(cst::TEXTE_SCORE), echelle, 160.f,
+                  recordBattu ? dore : sf::Color::White);
+
+    const std::string texteLignes = p.mode == Mode::Sprint
+                                        ? std::to_string(jeu.Lignes()) + " / " + std::to_string(p.sprintLignes)
+                                        : FormaterNombre(jeu.Lignes());
+    DessinerTexte(cible, lignes, Utf8(texteLignes), 20, Vers(cst::TEXTE_LIGNES), echelle, 160.f);
+
+    std::string texteNiveau;
+    sf::Color couleurNiveau = sf::Color::White;
+    switch (p.mode) {
+        case Mode::Marathon: texteNiveau = std::to_string(jeu.Niveau()); break;
+        case Mode::Sprint:   texteNiveau = FormaterTemps(jeu.Temps()); break;
+        case Mode::Ultra:
+            texteNiveau = FormaterTemps(jeu.TempsRestant());
+            if (jeu.TempsRestant() < 10.f) couleurNiveau = sf::Color(255, 90, 70); // dernières secondes
+            break;
+        case Mode::Zen:      texteNiveau = FormaterNombre(jeu.Stats().pieces); break;
+    }
+    DessinerTexte(cible, niveau, Utf8(texteNiveau), 20, Vers(cst::TEXTE_NIVEAU), echelle, 160.f, couleurNiveau);
+
+    // Nom du mode sous la grille
+    std::string pied;
+    switch (p.mode) {
+        case Mode::Marathon:
+            pied = "MARATHON";
+            if (p.niveauDepart > 0) pied += std::string(Tr(" · NIVEAU DE DÉPART ", " · START LEVEL ")) + std::to_string(p.niveauDepart);
+            break;
+        case Mode::Sprint: pied = "SPRINT " + std::to_string(p.sprintLignes) + Tr(" LIGNES", " LINES"); break;
+        case Mode::Ultra:  pied = Tr("ULTRA · 2 MINUTES", "ULTRA · 2 MINUTES"); break;
+        case Mode::Zen:    pied = "ZEN"; break;
+    }
+    DessinerTexte(cible, piedMode, Utf8(pied), 13,
+                  {cst::PLATEAU.x + static_cast<float>(cst::TUILE * cst::LARGEUR) / 2.f,
+                   cst::PLATEAU.y + static_cast<float>(cst::TUILE * cst::HAUTEUR) + 20.f},
+                  echelle, 300.f, sf::Color(150, 150, 150));
 }
 
 void Rendu::DessinerCommandes(sf::RenderTarget& cible, const Reglages& reglages, float echelle) {
     cible.draw(masqueCommandes);
 
-    if (reglages.touches != touchesAffichees || echelle != echelleCommandes) {
+    if (reglages.touches != touchesAffichees || echelle != echelleCommandes || LangueActuelle() != langueCommandes) {
         touchesAffichees = reglages.touches;
         echelleCommandes = echelle;
+        langueCommandes = LangueActuelle();
 
         auto principale = [&](Action action) { return touches::Nom(reglages.Touches(action)[0]); };
         const std::array<sf::String, 5> lignesTexte = {
-            Utf8("Déplacer : ") + principale(Action::Gauche) + " " + principale(Action::Droite),
-            Utf8("Descendre : ") + principale(Action::DescenteDouce) + Utf8("   Chute : ") + principale(Action::ChuteRapide),
-            Utf8("Tourner : ") + principale(Action::TournerHoraire) + " / " + principale(Action::TournerAntiHoraire),
-            Utf8("Garder : ") + principale(Action::Garder),
-            Utf8("Pause : ") + principale(Action::Pause) + Utf8("   Abandon : ") + principale(Action::Abandonner),
+            TrU("Déplacer : ", "Move: ") + principale(Action::Gauche) + " " + principale(Action::Droite),
+            TrU("Descendre : ", "Soft drop: ") + principale(Action::DescenteDouce) + TrU("   Chute : ", "   Drop: ") +
+                principale(Action::ChuteRapide),
+            TrU("Tourner : ", "Rotate: ") + principale(Action::TournerHoraire) + " / " + principale(Action::TournerAntiHoraire),
+            TrU("Garder : ", "Hold: ") + principale(Action::Garder),
+            TrU("Pause : ", "Pause: ") + principale(Action::Pause) + TrU("   Abandon : ", "   Quit: ") +
+                principale(Action::Abandonner),
         };
 
         const float hauteurLigne = ZONE_COMMANDES.height / static_cast<float>(texteCommandes.size());
@@ -198,13 +272,16 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
     DessinerLimite(cible, jeu, temps, plateau);
 
     sommets.clear();
+    motifs.clear();
+    motifsActifs = reglages.motifs;
+    const sf::Texture* texture = reglages.daltonien ? &tuilesDaltonien : &tuiles;
 
     const Jeu::Grille& grille = jeu.Plateau();
     for (int y = 0; y < cst::HAUTEUR; y++)
         for (int x = 0; x < cst::LARGEUR; x++)
             if (grille[y][x] != 0) AjouterTuile(grille[y][x], PositionCase(x, y));
 
-    if (!jeu.Perdu()) {
+    if (!jeu.Fini()) {
         // Mouvements fluides : la pièce affichée rattrape sa case en ~0,1 s. Nouvelle pièce ou grand saut
         // (répétition instantanée, garde) : placement direct pour ne jamais donner d'impression de retard.
         const sf::Vector2f position(static_cast<float>(jeu.PieceX()), static_cast<float>(jeu.PieceY()));
@@ -223,7 +300,7 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
             // Fantôme qui respire légèrement ; il suit la pièce horizontalement
             const auto alpha = static_cast<sf::Uint8>(90.f + (reglages.effets ? 25.f * std::sin(temps * 5.f) : 0.f));
             for (const Case& c : jeu.CasesFantome())
-                AjouterTuile(couleur, PositionCase(c.x, c.y) + sf::Vector2f(decalage.x, 0.f), sf::Color(255, 255, 255, alpha));
+                AjouterTuile(couleur, PositionCase(c.x, c.y) + sf::Vector2f(decalage.x, 0.f), sf::Color(255, 255, 255, alpha), false);
         }
 
         // La pièce s'assombrit pendant le délai de verrouillage
@@ -232,16 +309,19 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
         for (const Case& c : jeu.CasesPiece()) AjouterTuile(couleur, PositionCase(c.x, c.y) + decalage, teinte);
     }
 
-    plateau.texture = &tuiles;
+    plateau.texture = texture;
     cible.draw(sommets, plateau);
     plateau.texture = nullptr;
+    if (motifs.getVertexCount() > 0) cible.draw(motifs, plateau);
     effets.DessinerPlateau(cible, plateau);
 
     sommets.clear();
+    motifs.clear();
     AjouterApercu(jeu.PieceSuivante(), cst::APERCU_SUIVANT, sf::Color::White);
     AjouterApercu(jeu.PieceGardee(), cst::APERCU_GARDE,
                   jeu.GardeUtilisee() ? sf::Color(120, 120, 120) : sf::Color::White);
-    cible.draw(sommets, &tuiles);
+    cible.draw(sommets, texture);
+    if (motifs.getVertexCount() > 0) cible.draw(motifs);
 
     // Le score affiché rattrape le vrai score en quelques images
     if (!reglages.effets || static_cast<double>(jeu.Score()) < scoreAffiche)
@@ -251,11 +331,7 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
     const long long scoreArrondi =
         jeu.Score() - scoreAffiche < 1.0 ? jeu.Score() : static_cast<long long>(scoreAffiche);
 
-    // Doré dès que le meilleur score est battu
-    score.texte.setFillColor(record > 0 && jeu.Score() > record ? sf::Color(255, 204, 0) : sf::Color::White);
-    DessinerNombre(cible, score, scoreArrondi, cst::TEXTE_SCORE, echelle);
-    DessinerNombre(cible, lignes, jeu.Lignes(), cst::TEXTE_LIGNES, echelle);
-    DessinerNombre(cible, niveau, jeu.Niveau(), cst::TEXTE_NIVEAU, echelle);
+    DessinerInfos(cible, jeu, scoreArrondi, echelle);
     DessinerCommandes(cible, reglages, echelle);
 
     DessinerCombo(cible, jeu, temps, dt, echelle);

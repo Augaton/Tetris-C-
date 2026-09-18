@@ -1,7 +1,9 @@
 #include "Application.h"
 
 #include "Constantes.h"
+#include "Palette.h"
 #include "Ressources.h"
+#include "Texte.h"
 #include "Touches.h"
 
 #include <algorithm>
@@ -32,6 +34,11 @@ bool Application::Initialiser() {
         return false;
     }
 
+    if (!tuilesDaltonien.loadFromImage(palette::Recolorer(tuiles.copyToImage(), cst::TUILE))) {
+        std::cerr << "Impossible de préparer la palette pour daltoniens\n";
+        return false;
+    }
+
     // Lissage pour les grandes images mises à l'échelle ; pas pour les tuiles (bords nets, pas de débordement)
     fondJeu.setSmooth(true);
     logo.setSmooth(true);
@@ -39,6 +46,7 @@ bool Application::Initialiser() {
 
     cheminReglages = reglages::CheminFichier();
     reglages = reglages::Charger(cheminReglages, touches::ParDefaut(), touches::Code);
+    DefinirLangue(reglages.langue);
 
     AppliquerPleinEcran();
     return true;
@@ -98,6 +106,12 @@ bool Application::GererEvenement(const sf::Event& evenement) {
         case sf::Event::Resized:
             AjusterVue();
             return true;
+        case sf::Event::GainedFocus:
+            aLeFocus = true;
+            return false; // laissé aux boucles qui veulent aussi réagir
+        case sf::Event::LostFocus:
+            aLeFocus = false;
+            return false;
         case sf::Event::KeyPressed:
             if (evenement.key.code != sf::Keyboard::F11) return false;
             reglages.pleinEcran = !reglages.pleinEcran;
@@ -112,10 +126,16 @@ bool Application::GererEvenement(const sf::Event& evenement) {
 void Application::Afficher() {
     fenetre.display();
 
-    const sf::Time minimum = sf::seconds(fenetre.hasFocus() ? 1.f / 300.f : 1.f / 30.f);
-    const sf::Time ecoule = horlogeImage.getElapsedTime();
-    if (ecoule < minimum) sf::sleep(minimum - ecoule);
-    horlogeImage.restart();
+    float cadence = reglages.limiteImages > 0 ? static_cast<float>(reglages.limiteImages) : 300.f;
+    if (!aLeFocus) cadence = std::min(cadence, 30.f);
+
+    // Échéances fixes plutôt que « dormir après chaque image » : pas de dérive, cadence régulière
+    const sf::Time maintenant = horlogeImage.getElapsedTime();
+    prochaineImage += sf::seconds(1.f / cadence);
+    if (prochaineImage <= maintenant)
+        prochaineImage = maintenant; // en retard (synchro, menu en attente...) : on repart d'ici sans rattraper
+    else
+        sf::sleep(prochaineImage - maintenant);
 }
 
 float Application::Echelle() const {

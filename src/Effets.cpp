@@ -1,6 +1,7 @@
 #include "Effets.h"
 
 #include "Constantes.h"
+#include "Palette.h"
 #include "Texte.h"
 
 #include <algorithm>
@@ -10,15 +11,6 @@
 namespace {
 
 const float T = static_cast<float>(cst::TUILE);
-
-// Couleur dominante de chaque tuile de asset/tiles.png
-sf::Color CouleurTuile(int tuile) {
-    static const std::array<sf::Color, 8> palette = {{
-        {62, 130, 237}, {142, 104, 203}, {219, 45, 32}, {102, 191, 41},
-        {244, 200, 36}, {48, 190, 229},  {235, 125, 36}, {62, 130, 237},
-    }};
-    return palette[static_cast<size_t>(std::clamp(tuile, 0, 7))];
-}
 
 sf::Vector2f CoinCase(int x, int y) {
     return {cst::PLATEAU.x + T * static_cast<float>(x), cst::PLATEAU.y + T * static_cast<float>(y)};
@@ -94,7 +86,11 @@ void Effets::Secouer(float amplitude) {
     secousse = std::max(secousse, amplitude);
 }
 
-void Effets::Traiter(const std::vector<EvenementJeu>& evenements, bool effetsActifs, bool secoussesActives) {
+void Effets::Traiter(const std::vector<EvenementJeu>& evenements, const Reglages& reglages) {
+    const bool effetsActifs = reglages.effets;
+    const bool secoussesActives = reglages.secousses;
+    const auto CouleurTuile = [&](int tuile) { return palette::Tuile(tuile, reglages.daltonien); };
+
     for (const EvenementJeu& e : evenements) {
         switch (e.type) {
             case EvenementJeu::Type::ChuteRapide: {
@@ -158,8 +154,8 @@ void Effets::Traiter(const std::vector<EvenementJeu>& evenements, bool effetsAct
                 }
                 yMoyen /= static_cast<float>(std::max(1, e.nbLignes));
 
-                static const char* NOMS[] = {"", "", "DOUBLE", "TRIPLE", "TETRIS !"};
-                const std::string points = "+" + std::to_string(e.points);
+                const char* NOMS[] = {"", "", "DOUBLE", "TRIPLE", Tr("TETRIS !", "TETRIS!")};
+                const std::string points = "+" + FormaterNombre(e.points);
                 const sf::Vector2f centre(cst::PLATEAU.x + T * cst::LARGEUR / 2.f, yMoyen);
                 if (e.nbLignes >= 2)
                     AfficherTexte(Utf8(std::string(NOMS[std::min(e.nbLignes, 4)]) + "  " + points), centre,
@@ -169,9 +165,19 @@ void Effets::Traiter(const std::vector<EvenementJeu>& evenements, bool effetsAct
                 break;
             }
 
+            case EvenementJeu::Type::Nettoyage:
+                // Zen : la pile a atteint le haut et vient d'être vidée
+                if (secoussesActives) Secouer(5.f);
+                if (!effetsActifs) break;
+                for (int y = 0; y < cst::HAUTEUR; y++)
+                    AjouterEclat({CoinCase(0, y), {T * static_cast<float>(cst::LARGEUR), T}}, 0.45f, true);
+                AfficherTexte(TrU("PLATEAU VIDÉ", "BOARD CLEARED"),
+                              {cst::PLATEAU.x + T * cst::LARGEUR / 2.f, cst::PLATEAU.y + 180.f}, 24, sf::Color(86, 180, 233), 1.3f);
+                break;
+
             case EvenementJeu::Type::Niveau:
                 if (!effetsActifs) break;
-                AfficherTexte(Utf8("NIVEAU " + std::to_string(e.niveau)),
+                AfficherTexte(Utf8(Tr("NIVEAU ", "LEVEL ") + std::to_string(e.niveau)),
                               {cst::PLATEAU.x + T * cst::LARGEUR / 2.f, cst::PLATEAU.y + 110.f}, 30,
                               sf::Color(255, 204, 0), 1.3f);
                 break;
@@ -180,7 +186,7 @@ void Effets::Traiter(const std::vector<EvenementJeu>& evenements, bool effetsAct
 }
 
 void Effets::AnnoncerRecord() {
-    AfficherTexte(Utf8("NOUVEAU RECORD !"), {cst::PLATEAU.x + T * cst::LARGEUR / 2.f, cst::PLATEAU.y + 60.f}, 24,
+    AfficherTexte(TrU("NOUVEAU RECORD !", "NEW RECORD!"), {cst::PLATEAU.x + T * cst::LARGEUR / 2.f, cst::PLATEAU.y + 60.f}, 24,
                   sf::Color(255, 204, 0), 1.6f);
 }
 

@@ -11,7 +11,7 @@
 // Dessine une partie. Peut viser la fenêtre ou une RenderTexture (capture pour pause / fin).
 class Rendu {
 public:
-    Rendu(const sf::Texture& tuiles, const sf::Texture& fond, const sf::Font& police);
+    Rendu(const sf::Texture& tuiles, const sf::Texture& tuilesDaltonien, const sf::Texture& fond, const sf::Font& police);
 
     // Meilleur score au début de la partie : le score passe en doré quand il est battu
     void DefinirRecord(long long valeur) { record = valeur; }
@@ -21,20 +21,23 @@ public:
                   Effets& effets);
 
 private:
-    // Texte dont la chaîne n'est reconstruite que si la valeur ou l'échelle change
-    struct Nombre {
+    // Texte dont la mise en page n'est refaite que si la chaîne ou l'échelle change
+    struct TexteCache {
         sf::Text texte;
-        long long valeur = -1;
+        sf::String chaine;
         float echelle = 0.f;
     };
 
     const sf::Texture& tuiles;
+    const sf::Texture& tuilesDaltonien;
     const sf::Font& police;
     sf::Sprite fond;
     sf::RectangleShape limite;
     sf::RectangleShape masqueCommandes;
     sf::VertexArray sommets{sf::Quads}; // tuiles regroupées : un appel de dessin pour le plateau, un pour les aperçus
 
+    sf::VertexArray motifs{sf::Quads};  // accessibilité : un motif par type de pièce
+    bool motifsActifs = false;
     sf::VertexArray formes{sf::Triangles}; // badge du combo : formes arrondies en un seul appel de dessin
 
     float dernierTemps = 0.f;
@@ -47,7 +50,9 @@ private:
 
     float echellePrechargee = 0.f;
 
-    Nombre score, lignes, niveau;
+    TexteCache score, lignes, niveau;
+    std::array<TexteCache, 4> etiquettes; // titres du fond redessinés (anglais, modes chronométrés)
+    TexteCache piedMode;                  // nom du mode sous la grille
     long long record = 0;
 
     // Badge du combo
@@ -59,13 +64,16 @@ private:
     std::array<sf::Text, 5> texteCommandes;
     Reglages::TableTouches touchesAffichees = Reglages::TouchesVides();
     float echelleCommandes = 0.f;
+    Langue langueCommandes = Langue::Francais;
 
     // Rastérise à l'avance les glyphes utilisés en partie : pas d'à-coup au premier combo ou texte flottant
     void PrechargerGlyphes(float echelle);
     void AjouterRectangleArrondi(const sf::Transform& transformation, sf::FloatRect zone, float rayon, sf::Color couleur);
-    void AjouterTuile(int couleur, sf::Vector2f position, sf::Color teinte = sf::Color::White);
+    void AjouterTuile(int couleur, sf::Vector2f position, sf::Color teinte = sf::Color::White, bool avecMotif = true);
     void AjouterApercu(std::optional<TypePiece> type, cst::Point centre, sf::Color teinte);
-    void DessinerNombre(sf::RenderTarget& cible, Nombre& nombre, long long valeur, cst::Point centre, float echelle);
+    void DessinerTexte(sf::RenderTarget& cible, TexteCache& cache, const sf::String& chaine, unsigned taille,
+                       sf::Vector2f centre, float echelle, float largeurMax, sf::Color couleur = sf::Color::White);
+    void DessinerInfos(sf::RenderTarget& cible, const Jeu& jeu, long long scoreAffichage, float echelle);
     void DessinerCommandes(sf::RenderTarget& cible, const Reglages& reglages, float echelle);
     void DessinerLimite(sf::RenderTarget& cible, const Jeu& jeu, float temps, const sf::RenderStates& etats);
     void DessinerCombo(sf::RenderTarget& cible, const Jeu& jeu, float temps, float dt, float echelle);

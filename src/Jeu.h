@@ -1,17 +1,19 @@
 #pragma once
 
 #include "Constantes.h"
+#include "Mode.h"
 #include "Piece.h"
 #include "Sac.h"
 
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <random>
 #include <vector>
 
 // Ce qui vient de se passer, pour les effets visuels. Taille fixe : pas d'allocation en jeu.
 struct EvenementJeu {
-    enum class Type { ChuteRapide, Verrouillage, Lignes, Niveau };
+    enum class Type { ChuteRapide, Verrouillage, Lignes, Niveau, Nettoyage }; // Nettoyage : Zen, pile vidée
 
     Type type;
     Cases cases{};   // ChuteRapide, Verrouillage : cases de la pièce posée
@@ -26,6 +28,28 @@ struct EvenementJeu {
     int niveau = 0; // Niveau : nouveau niveau
 };
 
+struct Statistiques {
+    int pieces = 0;
+    std::array<int, 4> lignesParType{}; // simples, doubles, triples, Tetris
+    int comboMax = 0;
+};
+
+// Une entrée du journal de partie : chaque appel qui modifie le jeu, dans l'ordre.
+// Rejoué sur un Jeu de même graine et mêmes paramètres, il reproduit la partie à l'identique.
+struct Commande {
+    enum class Type : std::uint8_t { Deplacer, DescenteDouce, ChuteRapide, Tourner, Garder, Temps, DelaiVerrouillage };
+    Type type;
+    std::int8_t argument = 0; // Deplacer : direction ; Tourner : 1 horaire, 0 anti-horaire
+    float valeur = 0.f;       // Temps : dt ; DelaiVerrouillage : secondes
+};
+
+struct Enregistrement {
+    unsigned graine = 0;
+    ParametresPartie parametres;
+    std::vector<Commande> commandes;
+    bool complet = true; // faux si la partie a dépassé la taille maximale du journal
+};
+
 // Règles du jeu, sans rendu ni SFML.
 // La grille ne contient que les blocs posés : la pièce active est gardée à part.
 class Jeu {
@@ -33,7 +57,8 @@ public:
     // 0 = case vide, sinon n° de tuile
     using Grille = std::array<std::array<int, cst::LARGEUR>, cst::HAUTEUR>;
 
-    explicit Jeu(unsigned graine = std::random_device{}(), const Grille& depart = {});
+    explicit Jeu(unsigned graine = std::random_device{}(), const Grille& depart = {}, ParametresPartie parametres = {});
+    Jeu(unsigned graine, ParametresPartie parametres) : Jeu(graine, {}, parametres) {}
 
     // Actions du joueur (renvoient true si la pièce a bougé)
     bool Deplacer(int dx);
@@ -46,7 +71,13 @@ public:
     void MettreAJour(float dt);
 
     // Temps pendant lequel la pièce posée peut encore bouger avant d'être verrouillée
-    void DefinirDelaiVerrouillage(float secondes) { delaiVerrouillage = secondes < 0.f ? 0.f : secondes; }
+    void DefinirDelaiVerrouillage(float secondes);
+
+    // Journal de la partie, pour la revoir ensuite (désactivé par défaut)
+    void ActiverEnregistrement();
+    const Enregistrement& Journal() const { return journal; }
+    // Rejoue une commande d'un journal
+    void Rejouer(const Commande& commande);
 
     // Événements depuis le dernier ViderEvenements() (les plus anciens sont oubliés au-delà de 32)
     const std::vector<EvenementJeu>& Evenements() const { return evenements; }
@@ -73,6 +104,13 @@ public:
     // 0 = pièce libre, 1 = sur le point d'être verrouillée
     float ProgressionVerrouillage() const;
     bool Perdu() const { return perdu; }
+    bool ObjectifAtteint() const { return objectifAtteint; } // Sprint terminé, Ultra écoulé
+    bool Fini() const { return perdu || objectifAtteint; }
+
+    const ParametresPartie& Parametres() const { return parametres; }
+    float Temps() const { return temps; } // durée de jeu, pauses exclues
+    float TempsRestant() const;           // Ultra uniquement
+    const Statistiques& Stats() const { return stats; }
 
 private:
     struct EtatPiece {
@@ -82,6 +120,8 @@ private:
     };
 
     Grille grille;
+    ParametresPartie parametres;
+    unsigned graine;
     Sac sac;
     EtatPiece active{};
     TypePiece suivante{};
@@ -96,6 +136,15 @@ private:
     float comboRestant = 0.f;
     float chronoGravite = 0.f;
     bool perdu = false;
+    bool objectifAtteint = false;
+    float temps = 0.f;
+    Statistiques stats;
+
+    // Journal borné (~16 Mo) : au-delà, la partie ne peut simplement pas être revue
+    static constexpr size_t JOURNAL_MAX = 2'000'000;
+    bool enregistrer = false;
+    Enregistrement journal;
+    void Noter(Commande::Type type, int argument = 0, float valeur = 0.f);
 
     // Verrouillage différé : chaque mouvement réussi au sol relance le délai, dans une limite
     // de REINITIALISATIONS_MAX (remise à zéro si la pièce atteint une ligne plus basse)

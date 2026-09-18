@@ -17,6 +17,7 @@ public:
     Reglages reglages;
     sf::Font police;
     sf::Texture tuiles, fondJeu, logo, fondMenu;
+    sf::Texture tuilesDaltonien; // tuiles.png recolorée (palette Okabe-Ito)
 
     // Charge les ressources et les réglages puis ouvre la fenêtre. false si une ressource manque.
     bool Initialiser();
@@ -30,9 +31,12 @@ public:
     // Fermeture, redimensionnement et F11 (plein écran). Renvoie true si l'événement est traité.
     bool GererEvenement(const sf::Event& evenement);
 
-    // Affiche l'image. Limite la cadence (~300 images/s, 30 sans le focus) si la synchro verticale
-    // est désactivée ou ignorée par le pilote, pour ne pas occuper un cœur du processeur à 100 %.
+    // Affiche l'image puis attend l'échéance de la suivante : cadence régulière selon reglages.limiteImages
+    // (300 images/s par défaut si la synchro verticale est coupée ou ignorée), 30 sans le focus.
     void Afficher();
+
+    // Taille des textes des menus (option d'accessibilité)
+    float FacteurTexte() const { return static_cast<float>(reglages.tailleTexte) / 100.f; }
 
     // Pixels à l'écran par unité logique
     float Echelle() const;
@@ -47,6 +51,8 @@ private:
     sf::RenderTexture scene;
     std::filesystem::path cheminReglages;
     sf::Clock horlogeImage;
+    sf::Time prochaineImage;
+    bool aLeFocus = true; // suivi par les événements : évite un appel au système à chaque image
 
     void AjusterVue();
 };
