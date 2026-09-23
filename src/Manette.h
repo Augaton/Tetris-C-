@@ -2,6 +2,7 @@
 
 #include <SFML/Window.hpp>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 
@@ -12,7 +13,7 @@ namespace manette {
 inline constexpr int BASE_BOUTON = 1000;
 inline constexpr int NB_BOUTONS = 32;
 inline constexpr int BASE_AXE = 2000;
-inline constexpr int NB_AXES = sf::Joystick::AxisCount;
+inline constexpr int NB_AXES = static_cast<int>(sf::Joystick::AxisCount);
 
 int CodeBouton(unsigned bouton);
 int CodeAxe(sf::Joystick::Axis axe, bool positif);
@@ -30,12 +31,23 @@ struct Entree {
     bool appui; // false = relâchement
 };
 
+// Entrées produites par un événement : deux au plus (un axe qui change de sens relâche puis appuie)
+class Entrees {
+public:
+    void Ajouter(Entree entree) { entrees.at(nombre++) = entree; }
+    auto begin() const { return entrees.begin(); }
+    auto end() const { return entrees.begin() + static_cast<std::ptrdiff_t>(nombre); }
+
+private:
+    std::array<Entree, 2> entrees{};
+    std::size_t nombre = 0;
+};
+
 // Transforme les événements de manette en appuis/relâchements, avec un seuil et une
 // hystérésis sur les axes pour ignorer le bruit des sticks.
 class Traducteur {
 public:
-    // Renvoie le nombre d'entrées écrites (0 à 2 : un axe qui change de sens relâche puis appuie)
-    int Traduire(const sf::Event& evenement, std::array<Entree, 2>& sortie);
+    Entrees Traduire(const sf::Event& evenement);
 
 private:
     std::array<std::array<std::int8_t, NB_AXES>, sf::Joystick::Count> sens{};

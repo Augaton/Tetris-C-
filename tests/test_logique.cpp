@@ -16,6 +16,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace {
@@ -37,11 +38,11 @@ std::set<std::pair<int, int>> Ensemble(const Cases& cases) {
 }
 
 int MinX(const Cases& cases) {
-    return std::min_element(cases.begin(), cases.end(), [](Case a, Case b) { return a.x < b.x; })->x;
+    return std::ranges::min(cases, {}, &Case::x).x;
 }
 
 int MinY(const Cases& cases) {
-    return std::min_element(cases.begin(), cases.end(), [](Case a, Case b) { return a.y < b.y; })->y;
+    return std::ranges::min(cases, {}, &Case::y).y;
 }
 
 // Trouve une graine qui donne `type` comme première pièce
@@ -230,9 +231,9 @@ void TestDelaiVerrouillage() {
 }
 
 // Faux clavier pour tester le fichier de réglages sans SFML
-const std::map<std::string, int> CODES = {{"Left", 1}, {"Right", 2}, {"A", 3}, {"P", 4}};
+const std::map<std::string, int, std::less<>> CODES = {{"Left", 1}, {"Right", 2}, {"A", 3}, {"P", 4}};
 
-std::optional<int> CodeTest(const std::string& nom) {
+std::optional<int> CodeTest(std::string_view nom) {
     const auto it = CODES.find(nom);
     return it == CODES.end() ? std::nullopt : std::optional<int>(it->second);
 }

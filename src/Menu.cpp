@@ -9,16 +9,20 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <cstdio>
+#include <cstdint>
+#include <format>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
 
+using Touche = sf::Keyboard::Key;
+
 // Flou gaussien séparable : une passe horizontale puis une verticale,
 // 11 lectures par pixel par passe au lieu de 121 (ou 625) pour un flou 2D direct
-const char* flou_frag = R"(
+constexpr std::string_view SHADER_FLOU = R"(
 uniform sampler2D texture;
 uniform vec2 direction; // taille d'un pixel dans la direction du flou
 
@@ -36,20 +40,20 @@ void main() {
 })";
 
 // Le flou est calculé à cette largeur au plus : son coût ne dépend plus de la résolution de l'écran
-const float LARGEUR_FLOU = static_cast<float>(cst::FENETRE_LARGEUR);
+constexpr float LARGEUR_FLOU = static_cast<float>(cst::FENETRE_LARGEUR);
 
 // Ne recrée la texture que si sa taille change
 bool Dimensionner(sf::RenderTexture& texture, sf::Vector2u taille) {
     if (texture.getSize() == taille) return true;
-    if (!texture.create(taille.x, taille.y)) return false;
+    if (!texture.resize(taille)) return false;
     texture.setSmooth(true);
     return true;
 }
 
-const float CENTRE_X = static_cast<float>(cst::FENETRE_LARGEUR) / 2.f;
-const float CENTRE_Y = static_cast<float>(cst::FENETRE_HAUTEUR) / 2.f;
-const sf::Color JAUNE(255, 204, 0);
-const sf::Color GRIS(170, 170, 170);
+constexpr float CENTRE_X = static_cast<float>(cst::FENETRE_LARGEUR) / 2.f;
+constexpr float CENTRE_Y = static_cast<float>(cst::FENETRE_HAUTEUR) / 2.f;
+constexpr sf::Color JAUNE(255, 204, 0);
+constexpr sf::Color GRIS(170, 170, 170);
 
 unsigned Taille(unsigned taille, float facteur) {
     return static_cast<unsigned>(std::lround(static_cast<float>(taille) * facteur));
@@ -78,7 +82,8 @@ public:
     }
 
     void Definir(std::vector<sf::String> nouvelles) {
-        lignes.resize(nouvelles.size());
+        // Les textes ont besoin de la police : les lignes ajoutées sont construites avec elle
+        if (lignes.size() != nouvelles.size()) lignes.resize(nouvelles.size(), Ligne(app.police));
         for (size_t i = 0; i < nouvelles.size(); i++) {
             const sf::String chaine = style.majuscules ? Majuscules(nouvelles[i]) : nouvelles[i];
             if (chaine != lignes[i].chaine) {
@@ -100,39 +105,30 @@ public:
         const int n = static_cast<int>(lignes.size());
         if (n == 0) return {};
 
-        switch (e.type) {
-            case sf::Event::KeyPressed:
-                switch (e.key.code) {
-                    case sf::Keyboard::Up:    selection = (selection + n - 1) % n; break;
-                    case sf::Keyboard::Down:  selection = (selection + 1) % n;     break;
-                    case sf::Keyboard::Enter:
-                    case sf::Keyboard::Space: return {selection, 0};
-                    case sf::Keyboard::Left:  return {-1, -1};
-                    case sf::Keyboard::Right: return {-1, 1};
-                    default: break;
-                }
-                break;
-            case sf::Event::MouseMoved: {
-                const int ligne = LigneSous(e.mouseMove.x, e.mouseMove.y);
-                if (ligne >= 0) selection = ligne;
-                break;
+        if (const auto* touche = e.getIf<sf::Event::KeyPressed>()) {
+            switch (touche->code) {
+                case Touche::Up:    selection = (selection + n - 1) % n; break;
+                case Touche::Down:  selection = (selection + 1) % n;     break;
+                case Touche::Enter:
+                case Touche::Space: return {selection, 0};
+                case Touche::Left:  return {-1, -1};
+                case Touche::Right: return {-1, 1};
+                default: break;
             }
-            case sf::Event::MouseButtonPressed: {
-                const int ligne = LigneSous(e.mouseButton.x, e.mouseButton.y);
-                if (ligne < 0) break;
-                selection = ligne;
-                if (e.mouseButton.button == sf::Mouse::Left) return {ligne, 0};
-                if (e.mouseButton.button == sf::Mouse::Right) return {-1, -1};
-                break;
-            }
-            case sf::Event::MouseWheelScrolled: {
-                const int ligne = LigneSous(e.mouseWheelScroll.x, e.mouseWheelScroll.y);
-                if (ligne < 0 || e.mouseWheelScroll.delta == 0.f) break;
-                selection = ligne;
-                return {-1, e.mouseWheelScroll.delta > 0.f ? 1 : -1};
-            }
-            default:
-                break;
+        } else if (const auto* souris = e.getIf<sf::Event::MouseMoved>()) {
+            const int ligne = LigneSous(souris->position);
+            if (ligne >= 0) selection = ligne;
+        } else if (const auto* clic = e.getIf<sf::Event::MouseButtonPressed>()) {
+            const int ligne = LigneSous(clic->position);
+            if (ligne < 0) return {};
+            selection = ligne;
+            if (clic->button == sf::Mouse::Button::Left) return {ligne, 0};
+            if (clic->button == sf::Mouse::Button::Right) return {-1, -1};
+        } else if (const auto* molette = e.getIf<sf::Event::MouseWheelScrolled>()) {
+            const int ligne = LigneSous(molette->position);
+            if (ligne < 0 || molette->delta == 0.f) return {};
+            selection = ligne;
+            return {-1, molette->delta > 0.f ? 1 : -1};
         }
         return {};
     }
@@ -149,17 +145,16 @@ public:
             if (l.echelle != echelle || l.taille != tailleTexte) {
                 l.echelle = echelle;
                 l.taille = tailleTexte;
-                l.texte.setFont(app.police);
                 l.texte.setStyle(sf::Text::Bold);
                 l.texte.setLetterSpacing(style.majuscules ? 1.6f : 1.f);
                 l.texte.setString(l.chaine);
                 PlacerTexte(l.texte, tailleTexte, {0.f, 0.f}, echelle);
-                const float largeurLigne = l.texte.getGlobalBounds().width;
+                const float largeurLigne = l.texte.getGlobalBounds().size.x;
                 // Place réservée de chaque côté pour la mini-tuile du surlignage
                 if (largeurLigne > largeur - 110.f)
                     PlacerTexte(l.texte, tailleTexte, {0.f, 0.f}, echelle, (largeur - 110.f) / largeurLigne);
                 l.echelleBase = l.texte.getScale().x;
-                l.largeur = l.texte.getGlobalBounds().width;
+                l.largeur = l.texte.getGlobalBounds().size.x;
             }
             largeurMax = std::max(largeurMax, l.largeur);
         }
@@ -183,38 +178,39 @@ public:
         formes.clear();
         if (style.panneau) {
             const float hauteurPanneau = espacement * static_cast<float>(lignes.size()) + 20.f;
-            formes::AjouterRectangleArrondi(formes, {gauche, haut - espacement / 2.f - 10.f + glissement, largeurPanneau, hauteurPanneau},
-                                            14.f, sf::Color(14, 14, 14, static_cast<sf::Uint8>(205.f * a)));
+            formes::AjouterRectangleArrondi(formes, {{gauche, haut - espacement / 2.f - 10.f + glissement}, {largeurPanneau, hauteurPanneau}},
+                                            14.f, sf::Color(14, 14, 14, static_cast<std::uint8_t>(205.f * a)));
         }
         const float hauteurBarre = espacement - 8.f;
-        const sf::FloatRect barre(gauche + 8.f, ySurlignage - hauteurBarre / 2.f + glissement, largeurPanneau - 16.f, hauteurBarre);
+        const sf::FloatRect barre({gauche + 8.f, ySurlignage - hauteurBarre / 2.f + glissement}, {largeurPanneau - 16.f, hauteurBarre});
         formes::AjouterRectangleArrondi(formes, barre, hauteurBarre / 2.f,
-                                        sf::Color(accent.r, accent.g, accent.b, static_cast<sf::Uint8>(48.f * a)));
+                                        sf::Color(accent.r, accent.g, accent.b, static_cast<std::uint8_t>(48.f * a)));
         app.fenetre.draw(formes);
 
         // Mini-tuile du jeu devant l'entrée choisie
         const float cote = std::min(14.f, hauteurBarre - 8.f);
         tuile.setTexture(daltonien ? app.tuilesDaltonien : app.tuiles);
-        tuile.setTextureRect({cst::TUILE * couleurTuile, 0, cst::TUILE, cst::TUILE});
-        tuile.setScale(cote / cst::TUILE, cote / cst::TUILE);
-        tuile.setPosition(barre.left + hauteurBarre / 2.f - cote / 2.f + 2.f, ySurlignage - cote / 2.f + glissement);
-        tuile.setColor(sf::Color(255, 255, 255, static_cast<sf::Uint8>(255.f * a)));
+        tuile.setTextureRect({{cst::TUILE * couleurTuile, 0}, {cst::TUILE, cst::TUILE}});
+        tuile.setScale({cote / cst::TUILE, cote / cst::TUILE});
+        tuile.setPosition({barre.position.x + hauteurBarre / 2.f - cote / 2.f + 2.f, ySurlignage - cote / 2.f + glissement});
+        tuile.setColor(sf::Color(255, 255, 255, static_cast<std::uint8_t>(255.f * a)));
         app.fenetre.draw(tuile);
 
         for (size_t i = 0; i < lignes.size(); i++) {
             Ligne& l = lignes[i];
             const bool choisie = static_cast<int>(i) == selection;
-            const sf::Uint8 alpha = static_cast<sf::Uint8>(255.f * a);
+            const auto alpha = static_cast<std::uint8_t>(255.f * a);
             l.texte.setFillColor(choisie ? sf::Color(255, 255, 255, alpha) : sf::Color(165, 165, 165, alpha));
             const float zoom = choisie ? 1.04f : 1.f;
-            l.texte.setScale(l.echelleBase * zoom, l.echelleBase * zoom);
-            l.texte.setPosition(CENTRE_X, Centre(static_cast<int>(i)).y + glissement);
+            l.texte.setScale({l.echelleBase * zoom, l.echelleBase * zoom});
+            l.texte.setPosition({CENTRE_X, Centre(static_cast<int>(i)).y + glissement});
             app.fenetre.draw(l.texte);
         }
     }
 
 private:
     struct Ligne {
+        explicit Ligne(const sf::Font& police) : texte(police) {}
         sf::Text texte;
         sf::String chaine;
         float echelle = 0.f;
@@ -233,13 +229,13 @@ private:
     float ySurlignage = -1.f; // position affichée du surlignage
     float apparition = 0.f;   // 0 → 1 à l'ouverture
     sf::Clock horloge;
-    sf::VertexArray formes{sf::Triangles};
-    sf::Sprite tuile;
+    sf::VertexArray formes{sf::PrimitiveType::Triangles};
+    sf::Sprite tuile{app.tuiles};
 
     sf::Vector2f Centre(int i) const { return {CENTRE_X, haut + espacement * static_cast<float>(i)}; }
 
-    int LigneSous(int px, int py) const {
-        const sf::Vector2f p = app.fenetre.mapPixelToCoords({px, py});
+    int LigneSous(sf::Vector2i pixel) const {
+        const sf::Vector2f p = app.fenetre.mapPixelToCoords(pixel);
         if (std::abs(p.x - CENTRE_X) > largeur / 2.f) return -1;
         for (size_t i = 0; i < lignes.size(); i++)
             if (std::abs(p.y - Centre(static_cast<int>(i)).y) <= espacement / 2.f) return static_cast<int>(i);
@@ -247,8 +243,14 @@ private:
     }
 };
 
+// Touche appuyée par cet événement, Unknown si ce n'est pas un appui de touche
+Touche Appui(const sf::Event& e) {
+    const auto* touche = e.getIf<sf::Event::KeyPressed>();
+    return touche ? touche->code : Touche::Unknown;
+}
+
 bool Echap(const sf::Event& e) {
-    return e.type == sf::Event::KeyPressed && e.key.code == sf::Keyboard::Escape;
+    return Appui(e) == Touche::Escape;
 }
 
 void Ajuster(int& valeur, const Bornes& bornes, int delta, bool boucler) {
@@ -258,20 +260,20 @@ void Ajuster(int& valeur, const Bornes& bornes, int delta, bool boucler) {
 }
 
 sf::String Duree(int ms, const char* siZeroFr, const char* siZeroEn) {
-    return ms == 0 ? TrU(siZeroFr, siZeroEn) : Utf8(std::to_string(ms) + " ms");
+    return ms == 0 ? TrU(siZeroFr, siZeroEn) : Utf8(std::format("{} ms", ms));
 }
 
 // Limites proposées pour les images par seconde (0 = automatique)
-constexpr int LIMITES_IMAGES[] = {0, 60, 75, 120, 144, 165, 240, 360};
-constexpr int NB_LIMITES = sizeof(LIMITES_IMAGES) / sizeof(LIMITES_IMAGES[0]);
+constexpr std::array LIMITES_IMAGES = {0, 60, 75, 120, 144, 165, 240, 360};
 
 int LimiteVoisine(int valeur, int delta, bool boucler) {
+    const int nombre = static_cast<int>(LIMITES_IMAGES.size());
     int indice = 0;
-    for (int i = 0; i < NB_LIMITES; i++)
-        if (LIMITES_IMAGES[i] <= valeur) indice = i; // valeur saisie à la main : la plus proche en dessous
+    for (int i = 0; i < nombre; i++)
+        if (LIMITES_IMAGES[static_cast<size_t>(i)] <= valeur) indice = i; // valeur saisie à la main : la plus proche en dessous
     indice += delta;
-    if (boucler) indice = (indice + NB_LIMITES) % NB_LIMITES;
-    return LIMITES_IMAGES[std::clamp(indice, 0, NB_LIMITES - 1)];
+    if (boucler) indice = (indice + nombre) % nombre;
+    return LIMITES_IMAGES[static_cast<size_t>(std::clamp(indice, 0, nombre - 1))];
 }
 
 sf::String OuiNon(bool valeur) {
@@ -300,64 +302,57 @@ sf::String TexteRecord(Mode m, const EntreeClassement* premier) {
 }
 
 std::string Decimal(float valeur) {
-    char tampon[32];
-    std::snprintf(tampon, sizeof tampon, "%.2f", static_cast<double>(valeur));
-    std::string texte = tampon;
-    if (LangueActuelle() == Langue::Francais) std::replace(texte.begin(), texte.end(), '.', ',');
+    std::string texte = std::format("{:.2f}", valeur);
+    if (LangueActuelle() == Langue::Francais) std::ranges::replace(texte, '.', ',');
     return texte;
 }
 
 } // namespace
 
 Menu::Menu(Application& app) : app(app) {
-    texte.setFont(app.police);
     texte.setStyle(sf::Text::Bold);
 
     // Sans shader (GPU non compatible) on affiche le fond sans flou au lieu de planter
-    shaderOk = sf::Shader::isAvailable() && blurShader.loadFromMemory(flou_frag, sf::Shader::Fragment);
+    shaderOk = sf::Shader::isAvailable() && blurShader.loadFromMemory(SHADER_FLOU, sf::Shader::Type::Fragment);
     if (!shaderOk) std::cerr << "Shader de flou indisponible\n";
 }
 
-bool Menu::Lire(sf::Event& evenement) {
-    while (app.fenetre.pollEvent(evenement)) {
-        const bool deManette = evenement.type == sf::Event::JoystickButtonPressed ||
-                               evenement.type == sf::Event::JoystickButtonReleased ||
-                               evenement.type == sf::Event::JoystickMoved;
-        if (!deManette || !traduireManette) return true;
+std::optional<sf::Event> Menu::Lire() {
+    while (std::optional evenement = app.fenetre.pollEvent()) {
+        // La déconnexion passe aussi par le traducteur : il oublie les axes tenus de cette manette
+        const bool deManette = evenement->is<sf::Event::JoystickButtonPressed>() ||
+                               evenement->is<sf::Event::JoystickButtonReleased>() ||
+                               evenement->is<sf::Event::JoystickMoved>() ||
+                               evenement->is<sf::Event::JoystickDisconnected>();
+        if (!deManette || !traduireManette) return evenement;
 
-        std::array<manette::Entree, 2> entrees;
-        const int n = traducteur.Traduire(evenement, entrees);
-        for (int i = 0; i < n; i++) {
-            if (auto touche = manette::VersClavier(entrees[static_cast<size_t>(i)])) {
-                evenement = *touche;
-                return true;
-            }
-        }
+        for (const manette::Entree& entree : traducteur.Traduire(*evenement))
+            if (auto touche = manette::VersClavier(entree)) return touche;
         // Événement de manette sans effet dans les menus (bruit des sticks) : ignoré, sans redessiner
     }
-    return false;
+    return std::nullopt;
 }
 
 // Écran immobile déjà affiché : au lieu de le redessiner à chaque image, on attend le prochain
 // événement par petites siestes (processeur et GPU quasi au repos), avec un rafraîchissement
 // de sécurité chaque seconde.
-bool Menu::ProchainEvenement(sf::Event& evenement, bool& aJour, bool anime) {
-    if (Lire(evenement)) {
+std::optional<sf::Event> Menu::ProchainEvenement(bool& aJour, bool anime) {
+    if (auto evenement = Lire()) {
         aJour = false;
-        return true;
+        return evenement;
     }
-    if (!aJour || anime) return false;
+    if (!aJour || anime) return std::nullopt;
 
     while (app.fenetre.isOpen()) {
         sf::sleep(sf::milliseconds(8));
-        if (Lire(evenement)) {
+        if (auto evenement = Lire()) {
             aJour = false;
-            return true;
+            return evenement;
         }
         if (horlogeRepos.getElapsedTime() >= sf::seconds(1.f)) break;
     }
     aJour = false;
-    return false;
+    return std::nullopt;
 }
 
 void Menu::AfficherImage(bool& aJour) {
@@ -367,7 +362,7 @@ void Menu::AfficherImage(bool& aJour) {
 }
 
 void Menu::DessinerTexte(const sf::String& chaine, unsigned taille, float y, sf::Color couleur) {
-    DessinerTexte(chaine, taille, {CENTRE_X, y}, couleur, app.ZoneVisible().width - 20.f);
+    DessinerTexte(chaine, taille, {CENTRE_X, y}, couleur, app.ZoneVisible().size.x - 20.f);
 }
 
 void Menu::DessinerTexte(const sf::String& chaine, unsigned taille, sf::Vector2f centre, sf::Color couleur,
@@ -391,8 +386,7 @@ void Menu::PreparerFlou(const sf::Texture& scene) {
         return;
 
     sf::Sprite reduit(scene);
-    reduit.setScale(static_cast<float>(taille.x) / static_cast<float>(source.x),
-                    static_cast<float>(taille.y) / static_cast<float>(source.y));
+    reduit.setScale(sf::Vector2f(taille).componentWiseDiv(sf::Vector2f(source)));
     flouReduit.clear();
     flouReduit.draw(reduit);
     flouReduit.display();
@@ -422,12 +416,12 @@ void Menu::DessinerTitre(const sf::String& chaine, float y) {
     texte.setLetterSpacing(1.f);
 
     decor.clear();
-    const int couleurs[] = {5, 4, 1, 3}; // cyan, jaune, violet, vert
-    const float cote = 7.f, pas = 11.f;
-    for (int i = 0; i < 4; i++) {
+    constexpr std::array couleurs = {5, 4, 1, 3}; // cyan, jaune, violet, vert
+    constexpr float cote = 7.f, pas = 11.f;
+    for (size_t i = 0; i < couleurs.size(); i++) {
         const sf::Color c = palette::Tuile(couleurs[i], app.reglages.daltonien);
-        formes::AjouterRectangleArrondi(decor, {CENTRE_X - 2.f * pas + pas * static_cast<float>(i) + (pas - cote) / 2.f, y + 24.f, cote, cote},
-                                        1.5f, c);
+        const float x = CENTRE_X - 2.f * pas + pas * static_cast<float>(i) + (pas - cote) / 2.f;
+        formes::AjouterRectangleArrondi(decor, {{x, y + 24.f}, {cote, cote}}, 1.5f, c);
     }
     app.fenetre.draw(decor);
 }
@@ -436,8 +430,8 @@ void Menu::DessinerTitre(const sf::String& chaine, float y) {
 void Menu::DessinerFondFlou() {
     DessinerDansZone(fondFlou.getTexture());
     const sf::FloatRect zone = app.ZoneVisible();
-    sf::RectangleShape voile({zone.width, zone.height});
-    voile.setPosition(zone.left, zone.top);
+    sf::RectangleShape voile(zone.size);
+    voile.setPosition(zone.position);
     voile.setFillColor(sf::Color(0, 0, 0, 140));
     app.fenetre.draw(voile);
 }
@@ -447,9 +441,8 @@ void Menu::DessinerDansZone(const sf::Texture& texture) {
     if (texture.getSize().x == 0 || texture.getSize().y == 0) return;
     const sf::FloatRect zone = app.ZoneVisible();
     sf::Sprite sprite(texture);
-    sprite.setPosition(zone.left, zone.top);
-    sprite.setScale(zone.width / static_cast<float>(texture.getSize().x),
-                    zone.height / static_cast<float>(texture.getSize().y));
+    sprite.setPosition(zone.position);
+    sprite.setScale(zone.size.componentWiseDiv(sf::Vector2f(texture.getSize())));
     app.fenetre.draw(sprite);
 }
 
@@ -469,25 +462,24 @@ Menu::Choix Menu::Principal(const Classements& classements, ParametresPartie& pa
     const Fond fond{[&] {
         const sf::FloatRect zone = app.ZoneVisible();
         const sf::Vector2f tailleTexture(app.fondMenu.getSize());
-        const float echelleFond = std::max(1.f, zone.width / tailleTexture.x);
+        const float echelleFond = std::max(1.f, zone.size.x / tailleTexture.x);
         const float hauteur = tailleTexture.y * echelleFond;
 
         decalage = std::fmod(decalage + 18.f * horlogeFond.restart().asSeconds(), hauteur);
-        spriteFond.setScale(echelleFond, echelleFond);
+        spriteFond.setScale({echelleFond, echelleFond});
         const float x = CENTRE_X - tailleTexture.x * echelleFond / 2.f;
-        for (float y = zone.top + decalage - hauteur; y < zone.top + zone.height; y += hauteur) {
-            spriteFond.setPosition(x, y);
+        for (float y = zone.position.y + decalage - hauteur; y < zone.position.y + zone.size.y; y += hauteur) {
+            spriteFond.setPosition({x, y});
             app.fenetre.draw(spriteFond);
         }
-        voile.setSize({zone.width, zone.height});
-        voile.setPosition(zone.left, zone.top);
+        voile.setSize(zone.size);
+        voile.setPosition(zone.position);
         app.fenetre.draw(voile);
     }, true};
 
     sf::Sprite spriteLogo(app.logo);
-    const sf::FloatRect b = spriteLogo.getLocalBounds();
-    spriteLogo.setOrigin(b.width / 2.f, b.height / 2.f);
-    spriteLogo.setPosition(CENTRE_X, 100.f);
+    spriteLogo.setOrigin(spriteLogo.getLocalBounds().size / 2.f);
+    spriteLogo.setPosition({CENTRE_X, 100.f});
 
     const auto remplir = [&] {
         // Reconstruit chaque image : la langue peut changer depuis les options
@@ -496,10 +488,9 @@ Menu::Choix Menu::Principal(const Classements& classements, ParametresPartie& pa
     };
     while (app.fenetre.isOpen()) {
         remplir();
-        sf::Event evenement;
-        while (Lire(evenement)) {
-            if (app.GererEvenement(evenement)) continue;
-            switch (liste.Traiter(evenement).activee) {
+        while (const std::optional evenement = Lire()) {
+            if (app.GererEvenement(*evenement)) continue;
+            switch (liste.Traiter(*evenement).activee) {
                 case 0:
                     if (auto choix = ChoisirMode(fond, classements)) {
                         parametres = *choix;
@@ -538,8 +529,8 @@ std::optional<ParametresPartie> Menu::ChoisirMode(const Fond& fond, const Classe
     bool aJour = false;
     const auto remplir = [&] {
         liste.Definir({
-            Utf8("Marathon · ") + TrU("niveau de départ : ", "start level: ") + Utf8("< " + std::to_string(r.niveauDepart) + " >"),
-            Utf8("Sprint · ") + Utf8(std::to_string(mode::SPRINT_LIGNES)) + TrU(" lignes", " lines"),
+            Utf8("Marathon · ") + TrU("niveau de départ : ", "start level: ") + Utf8(std::format("< {} >", r.niveauDepart)),
+            Utf8(std::format("Sprint · {}", mode::SPRINT_LIGNES)) + TrU(" lignes", " lines"),
             Utf8("Ultra · 2 minutes"),
             Utf8("Zen"),
             TrU("Retour", "Back"),
@@ -547,12 +538,11 @@ std::optional<ParametresPartie> Menu::ChoisirMode(const Fond& fond, const Classe
     };
     while (app.fenetre.isOpen()) {
         remplir();
-        sf::Event evenement;
-        while (ProchainEvenement(evenement, aJour, fond.anime || liste.EnAnimation())) {
-            if (app.GererEvenement(evenement)) continue;
-            if (Echap(evenement)) return std::nullopt;
+        while (const std::optional evenement = ProchainEvenement(aJour, fond.anime || liste.EnAnimation())) {
+            if (app.GererEvenement(*evenement)) continue;
+            if (Echap(*evenement)) return std::nullopt;
 
-            const Liste::Resultat res = liste.Traiter(evenement);
+            const Liste::Resultat res = liste.Traiter(*evenement);
             // Gauche/droite sur Marathon : niveau de départ
             if (res.delta != 0 && liste.Selection() == 0)
                 r.niveauDepart = std::clamp(r.niveauDepart + res.delta, 0, mode::NIVEAU_DEPART_MAX);
@@ -567,7 +557,7 @@ std::optional<ParametresPartie> Menu::ChoisirMode(const Fond& fond, const Classe
 
         remplir();
 
-        static const std::array<std::pair<const char*, const char*>, NB_MODES> descriptions = {{
+        static constexpr std::array<std::pair<const char*, const char*>, NB_MODES> descriptions = {{
             {"Un niveau de plus toutes les 10 lignes, jusqu'à la défaite.", "One level up every 10 lines, until you top out."},
             {"Faites 40 lignes le plus vite possible.", "Clear 40 lines as fast as you can."},
             {"Marquez un maximum de points en 2 minutes.", "Score as many points as you can in 2 minutes."},
@@ -591,27 +581,26 @@ std::optional<ParametresPartie> Menu::ChoisirMode(const Fond& fond, const Classe
 
 void Menu::AfficherClassements(const Fond& fond, const Classements& classements) {
     int onglet = static_cast<int>(app.reglages.mode);
-    const float colonnes[] = {230.f, 370.f, 510.f, 660.f};
+    constexpr std::array colonnes = {230.f, 370.f, 510.f, 660.f};
 
     bool aJour = false;
     while (app.fenetre.isOpen()) {
-        sf::Event evenement;
-        while (ProchainEvenement(evenement, aJour, fond.anime)) {
-            if (app.GererEvenement(evenement)) continue;
-            if (evenement.type == sf::Event::KeyPressed) {
-                switch (evenement.key.code) {
-                    case sf::Keyboard::Escape:
-                    case sf::Keyboard::Enter:
-                    case sf::Keyboard::Backspace: return;
-                    case sf::Keyboard::Left:  onglet = (onglet + NB_MODES - 1) % NB_MODES; break;
-                    case sf::Keyboard::Right: onglet = (onglet + 1) % NB_MODES; break;
+        while (const std::optional evenement = ProchainEvenement(aJour, fond.anime)) {
+            if (app.GererEvenement(*evenement)) continue;
+            if (evenement->is<sf::Event::KeyPressed>()) {
+                switch (Appui(*evenement)) {
+                    case Touche::Escape:
+                    case Touche::Enter:
+                    case Touche::Backspace: return;
+                    case Touche::Left:  onglet = (onglet + NB_MODES - 1) % NB_MODES; break;
+                    case Touche::Right: onglet = (onglet + 1) % NB_MODES; break;
                     default: break;
                 }
-            } else if (evenement.type == sf::Event::MouseWheelScrolled && evenement.mouseWheelScroll.delta != 0.f) {
-                onglet = (onglet + (evenement.mouseWheelScroll.delta > 0.f ? NB_MODES - 1 : 1)) % NB_MODES;
-            } else if (evenement.type == sf::Event::MouseButtonPressed) {
+            } else if (const auto* molette = evenement->getIf<sf::Event::MouseWheelScrolled>()) {
+                if (molette->delta != 0.f) onglet = (onglet + (molette->delta > 0.f ? NB_MODES - 1 : 1)) % NB_MODES;
+            } else if (const auto* clic = evenement->getIf<sf::Event::MouseButtonPressed>()) {
                 // Clic sur un onglet pour le choisir, ailleurs pour revenir
-                const sf::Vector2f p = app.fenetre.mapPixelToCoords({evenement.mouseButton.x, evenement.mouseButton.y});
+                const sf::Vector2f p = app.fenetre.mapPixelToCoords(clic->position);
                 if (std::abs(p.y - 100.f) < 20.f && std::abs(p.x - CENTRE_X) < 300.f)
                     onglet = std::clamp(static_cast<int>((p.x - (CENTRE_X - 300.f)) / 150.f), 0, NB_MODES - 1);
                 else
@@ -629,8 +618,8 @@ void Menu::AfficherClassements(const Fond& fond, const Classements& classements)
             DessinerTexte(NomMode(static_cast<Mode>(i)), 20, {CENTRE_X - 225.f + 150.f * static_cast<float>(i), 100.f},
                           i == onglet ? JAUNE : GRIS, 140.f);
         sf::RectangleShape souligne({110.f, 3.f});
-        souligne.setOrigin(55.f, 0.f);
-        souligne.setPosition(CENTRE_X - 225.f + 150.f * static_cast<float>(onglet), 116.f);
+        souligne.setOrigin({55.f, 0.f});
+        souligne.setPosition({CENTRE_X - 225.f + 150.f * static_cast<float>(onglet), 116.f});
         souligne.setFillColor(JAUNE);
         app.fenetre.draw(souligne);
 
@@ -660,7 +649,7 @@ void Menu::AfficherClassements(const Fond& fond, const Classements& classements)
 // Options
 // ---------------------------------------------------------------------------------------------
 
-void Menu::EcranReglages(const Fond& fond, const sf::String& titre, const std::vector<ElementReglage>& elements) {
+void Menu::EcranReglages(const Fond& fond, const sf::String& titre, std::span<const ElementReglage> elements) {
     Liste liste(app, 145.f, 42.f, 20, 700.f);
     const int retour = static_cast<int>(elements.size());
 
@@ -673,14 +662,13 @@ void Menu::EcranReglages(const Fond& fond, const sf::String& titre, const std::v
     };
     while (app.fenetre.isOpen()) {
         remplir();
-        sf::Event evenement;
-        while (ProchainEvenement(evenement, aJour, fond.anime || liste.EnAnimation())) {
-            if (app.GererEvenement(evenement)) continue;
-            if (Echap(evenement)) {
+        while (const std::optional evenement = ProchainEvenement(aJour, fond.anime || liste.EnAnimation())) {
+            if (app.GererEvenement(*evenement)) continue;
+            if (Echap(*evenement)) {
                 app.SauverReglages();
                 return;
             }
-            const Liste::Resultat res = liste.Traiter(evenement);
+            const Liste::Resultat res = liste.Traiter(*evenement);
             const int ligne = res.activee >= 0 ? res.activee : liste.Selection();
             if (res.activee < 0 && res.delta == 0) continue;
             if (ligne == retour) {
@@ -754,7 +742,7 @@ void Menu::Options(const Fond& fond) {
     const std::vector<ElementReglage> accessibilite = {
         {[&] { return TrU("Palette pour daltoniens : ", "Colorblind palette: ") + OuiNon(r.daltonien); }, booleen(r.daltonien)},
         {[&] { return TrU("Motifs sur les pièces : ", "Piece patterns: ") + OuiNon(r.motifs); }, booleen(r.motifs)},
-        {[&] { return TrU("Taille du texte des menus : ", "Menu text size: ") + Utf8(std::to_string(r.tailleTexte) + " %"); },
+        {[&] { return TrU("Taille du texte des menus : ", "Menu text size: ") + Utf8(std::format("{} %", r.tailleTexte)); },
          nombre(r.tailleTexte, Reglages::BORNES_TAILLE_TEXTE)},
     };
 
@@ -767,14 +755,13 @@ void Menu::Options(const Fond& fond) {
     };
     while (app.fenetre.isOpen()) {
         remplir();
-        sf::Event evenement;
-        while (ProchainEvenement(evenement, aJour, fond.anime || liste.EnAnimation())) {
-            if (app.GererEvenement(evenement)) continue;
-            if (Echap(evenement)) {
+        while (const std::optional evenement = ProchainEvenement(aJour, fond.anime || liste.EnAnimation())) {
+            if (app.GererEvenement(*evenement)) continue;
+            if (Echap(*evenement)) {
                 app.SauverReglages();
                 return;
             }
-            const Liste::Resultat res = liste.Traiter(evenement);
+            const Liste::Resultat res = liste.Traiter(*evenement);
             const bool langueModifiee = res.delta != 0 && liste.Selection() == 3;
             switch (langueModifiee ? 3 : res.activee) {
                 case 0: EcranReglages(fond, TrU("Jeu", "Gameplay"), jeu); break;
@@ -848,25 +835,22 @@ void Menu::Commandes(const Fond& fond) {
     };
     while (app.fenetre.isOpen()) {
         remplir();
-        sf::Event evenement;
-        while (ProchainEvenement(evenement, aJour, fond.anime || liste.EnAnimation())) {
-            if (app.GererEvenement(evenement)) continue;
+        while (const std::optional evenement = ProchainEvenement(aJour, fond.anime || liste.EnAnimation())) {
+            if (app.GererEvenement(*evenement)) continue;
 
             if (enAttente) {
-                if (evenement.type == sf::Event::KeyPressed) {
-                    if (evenement.key.code != sf::Keyboard::Escape && touches::Attribuable(evenement.key.code))
-                        r.AssignerTouche(*enAttente, evenement.key.code);
-                    if (evenement.key.code == sf::Keyboard::Escape || touches::Attribuable(evenement.key.code))
-                        terminerSaisie();
-                } else if (evenement.type == sf::Event::MouseButtonPressed) {
+                if (const auto* touche = evenement->getIf<sf::Event::KeyPressed>()) {
+                    const bool attribuable = touches::Attribuable(touche->code);
+                    if (touche->code != Touche::Escape && attribuable)
+                        r.AssignerTouche(*enAttente, touches::CodeTouche(touche->code));
+                    if (touche->code == Touche::Escape || attribuable) terminerSaisie();
+                } else if (evenement->is<sf::Event::MouseButtonPressed>()) {
                     terminerSaisie();
                 } else {
                     // Manette : premier bouton ou direction franche
-                    std::array<manette::Entree, 2> entrees;
-                    const int n = traducteur.Traduire(evenement, entrees);
-                    for (int i = 0; i < n; i++) {
-                        if (!entrees[static_cast<size_t>(i)].appui) continue;
-                        r.AssignerBouton(*enAttente, entrees[static_cast<size_t>(i)].code);
+                    for (const manette::Entree& entree : traducteur.Traduire(*evenement)) {
+                        if (!entree.appui) continue;
+                        r.AssignerBouton(*enAttente, entree.code);
                         terminerSaisie();
                         break;
                     }
@@ -874,23 +858,23 @@ void Menu::Commandes(const Fond& fond) {
                 continue;
             }
 
-            if (Echap(evenement)) {
+            if (Echap(*evenement)) {
                 app.SauverReglages();
                 return;
             }
-            if (evenement.type == sf::Event::KeyPressed && liste.Selection() < NB_ACTIONS) {
+            if (liste.Selection() < NB_ACTIONS) {
                 const Action action = static_cast<Action>(liste.Selection());
-                if (evenement.key.code == sf::Keyboard::Backspace) {
+                if (Appui(*evenement) == Touche::Backspace) {
                     r.EffacerTouches(action);
                     continue;
                 }
-                if (evenement.key.code == sf::Keyboard::Delete) {
+                if (Appui(*evenement) == Touche::Delete) {
                     r.EffacerBoutons(action);
                     continue;
                 }
             }
 
-            const int activee = liste.Traiter(evenement).activee;
+            const int activee = liste.Traiter(*evenement).activee;
             if (activee >= 0 && activee < NB_ACTIONS) {
                 enAttente = static_cast<Action>(activee);
                 traduireManette = false; // les boutons doivent arriver bruts pour être attribués
@@ -934,11 +918,10 @@ bool Menu::ConfirmerSurFond(const Fond& fond, const std::string& question) {
     };
     while (app.fenetre.isOpen()) {
         remplir();
-        sf::Event evenement;
-        while (ProchainEvenement(evenement, aJour, fond.anime || liste.EnAnimation())) {
-            if (app.GererEvenement(evenement)) continue;
-            if (Echap(evenement)) return false;
-            const int activee = liste.Traiter(evenement).activee;
+        while (const std::optional evenement = ProchainEvenement(aJour, fond.anime || liste.EnAnimation())) {
+            if (app.GererEvenement(*evenement)) continue;
+            if (Echap(*evenement)) return false;
+            const int activee = liste.Traiter(*evenement).activee;
             if (activee >= 0) return activee == 1;
         }
         if (!app.fenetre.isOpen()) break;
@@ -971,14 +954,14 @@ bool Menu::Pause(const sf::Texture& scene) {
     };
     while (app.fenetre.isOpen()) {
         remplir();
-        sf::Event evenement;
-        while (ProchainEvenement(evenement, aJour, liste.EnAnimation())) {
-            if (app.GererEvenement(evenement)) continue;
-            if (evenement.type == sf::Event::KeyPressed &&
-                (evenement.key.code == sf::Keyboard::Escape || app.reglages.ActionDe(evenement.key.code) == Action::Pause))
+        while (const std::optional evenement = ProchainEvenement(aJour, liste.EnAnimation())) {
+            if (app.GererEvenement(*evenement)) continue;
+            const Touche touche = Appui(*evenement);
+            if (touche == Touche::Escape ||
+                (touche != Touche::Unknown && app.reglages.ActionDe(touches::CodeTouche(touche)) == Action::Pause))
                 return false;
 
-            switch (liste.Traiter(evenement).activee) {
+            switch (liste.Traiter(*evenement).activee) {
                 case 0: return false;
                 case 1: Options(fond); break;
                 case 2: Commandes(fond); break;
@@ -1008,16 +991,15 @@ void Menu::CompteARebours(const sf::Texture& scene) {
         const float t = horloge.getElapsedTime().asSeconds();
         if (t >= duree) return;
 
-        sf::Event evenement;
-        while (Lire(evenement)) app.GererEvenement(evenement);
+        while (const std::optional evenement = Lire()) app.GererEvenement(*evenement);
         if (!app.fenetre.isOpen()) return;
 
         const int chiffre = 3 - static_cast<int>(t / cst::COMPTE_A_REBOURS_S);
         const float progression = std::fmod(t, cst::COMPTE_A_REBOURS_S) / cst::COMPTE_A_REBOURS_S;
 
         const sf::FloatRect zone = app.ZoneVisible();
-        sf::RectangleShape voile({zone.width, zone.height});
-        voile.setPosition(zone.left, zone.top);
+        sf::RectangleShape voile(zone.size);
+        voile.setPosition(zone.position);
         voile.setFillColor(sf::Color(0, 0, 0, 110));
 
         app.fenetre.clear(COULEUR_FOND);
@@ -1026,7 +1008,7 @@ void Menu::CompteARebours(const sf::Texture& scene) {
 
         // Chaque chiffre apparaît en grand puis rétrécit en s'effaçant
         texte.setString(std::to_string(chiffre));
-        texte.setFillColor(sf::Color(255, 255, 255, static_cast<sf::Uint8>(255.f * (1.f - std::pow(progression, 3.f)))));
+        texte.setFillColor(sf::Color(255, 255, 255, static_cast<std::uint8_t>(255.f * (1.f - std::pow(progression, 3.f)))));
         const float zoom = 1.f + 0.6f * std::pow(1.f - progression, 3.f);
         PlacerTexte(texte, 90, {CENTRE_X, CENTRE_Y}, app.Echelle(), zoom);
         app.fenetre.draw(texte);
@@ -1061,11 +1043,10 @@ Menu::Choix Menu::FinDePartie(const sf::Texture& scene, const ResumePartie& resu
     };
     while (app.fenetre.isOpen()) {
         remplir();
-        sf::Event evenement;
-        while (ProchainEvenement(evenement, aJour, liste.EnAnimation())) {
-            if (app.GererEvenement(evenement)) continue;
-            if (Echap(evenement)) return Choix::MenuPrincipal;
-            const int activee = liste.Traiter(evenement).activee;
+        while (const std::optional evenement = ProchainEvenement(aJour, liste.EnAnimation())) {
+            if (app.GererEvenement(*evenement)) continue;
+            if (Echap(*evenement)) return Choix::MenuPrincipal;
+            const int activee = liste.Traiter(*evenement).activee;
             if (activee < 0) continue;
             switch (entrees[static_cast<size_t>(activee)]) {
                 case Entree::Recommencer: return Choix::Jouer;
@@ -1100,8 +1081,8 @@ Menu::Choix Menu::FinDePartie(const sf::Texture& scene, const ResumePartie& resu
             classement = TrU("Nouveau record !", "New record!");
             couleurClassement = JAUNE;
         } else if (resume.rang > 0) {
-            classement = Utf8(LangueActuelle() == Langue::Anglais ? "Ranked #" + std::to_string(resume.rang + 1)
-                                                                   : "Classé " + std::to_string(resume.rang + 1) + "e");
+            classement = Utf8(LangueActuelle() == Langue::Anglais ? std::format("Ranked #{}", resume.rang + 1)
+                                                                   : std::format("Classé {}e", resume.rang + 1));
         } else {
             classement = TexteRecord(m, resume.premier ? &*resume.premier : nullptr);
             couleurClassement = GRIS;

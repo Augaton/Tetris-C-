@@ -7,8 +7,8 @@
 #include <functional>
 
 // Couleurs de asset/FondPrincipal.png, pour prolonger le décor au-delà de l'image
-inline const sf::Color COULEUR_FOND(35, 35, 35);
-inline const sf::Color COULEUR_PANNEAU(22, 22, 22);
+inline constexpr sf::Color COULEUR_FOND{35, 35, 35};
+inline constexpr sf::Color COULEUR_PANNEAU{22, 22, 22};
 
 // Fenêtre, ressources et réglages partagés par les menus et la partie
 class Application {

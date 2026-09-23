@@ -3,7 +3,11 @@
 #include "Manette.h"
 #include "Texte.h"
 
+#include <algorithm>
+#include <array>
+#include <charconv>
 #include <cstdlib>
+#include <format>
 #include <vector>
 
 #ifdef _WIN32
@@ -15,52 +19,54 @@
 
 namespace {
 
-using K = sf::Keyboard;
+using Touche = sf::Keyboard::Key;
 
 struct InfoTouche {
-    K::Key code;
+    Touche touche;
     std::string identifiant;
-    std::string nom;       // UTF-8, français
+    std::string nom;        // UTF-8, français
     std::string nomAnglais; // vide = identique
 };
 
 const std::vector<InfoTouche>& Table() {
     static const std::vector<InfoTouche> table = [] {
+        // Lettres, chiffres et touches de fonction se suivent dans l'énumération de SFML
+        const auto decaler = [](Touche premiere, int i) { return static_cast<Touche>(static_cast<int>(premiere) + i); };
         std::vector<InfoTouche> t;
         for (int i = 0; i < 26; i++) {
             const std::string lettre(1, static_cast<char>('A' + i));
-            t.push_back({static_cast<K::Key>(K::A + i), lettre, lettre, ""});
+            t.push_back({decaler(Touche::A, i), lettre, lettre, ""});
         }
         for (int i = 0; i < 10; i++) {
             const std::string chiffre = std::to_string(i);
-            t.push_back({static_cast<K::Key>(K::Num0 + i), "Num" + chiffre, chiffre, ""});
-            t.push_back({static_cast<K::Key>(K::Numpad0 + i), "Numpad" + chiffre, "Pavé " + chiffre, "Num " + chiffre});
+            t.push_back({decaler(Touche::Num0, i), "Num" + chiffre, chiffre, ""});
+            t.push_back({decaler(Touche::Numpad0, i), "Numpad" + chiffre, "Pavé " + chiffre, "Num " + chiffre});
         }
         for (int i = 0; i < 15; i++) {
             const std::string f = "F" + std::to_string(i + 1);
-            t.push_back({static_cast<K::Key>(K::F1 + i), f, f, ""});
+            t.push_back({decaler(Touche::F1, i), f, f, ""});
         }
         const std::vector<InfoTouche> autres = {
-            {K::Escape, "Escape", "Échap", "Esc"},          {K::LControl, "LControl", "Ctrl G", "L Ctrl"},
-            {K::LShift, "LShift", "Maj G", "L Shift"},        {K::LAlt, "LAlt", "Alt", ""},
-            {K::LSystem, "LSystem", "Système G", "L Super"},  {K::RControl, "RControl", "Ctrl D", "R Ctrl"},
-            {K::RShift, "RShift", "Maj D", "R Shift"},        {K::RAlt, "RAlt", "Alt Gr", ""},
-            {K::RSystem, "RSystem", "Système D", "R Super"},  {K::Menu, "Menu", "Menu", ""},
-            {K::LBracket, "LBracket", "[", ""},                {K::RBracket, "RBracket", "]", ""},
-            {K::Semicolon, "Semicolon", ";", ""},              {K::Comma, "Comma", ",", ""},
-            {K::Period, "Period", ".", ""},                    {K::Apostrophe, "Apostrophe", "'", ""},
-            {K::Slash, "Slash", "/", ""},                      {K::Backslash, "Backslash", "\\", ""},
-            {K::Grave, "Grave", "`", ""},                      {K::Equal, "Equal", "=", ""},
-            {K::Hyphen, "Hyphen", "-", ""},                    {K::Space, "Space", "Espace", "Space"},
-            {K::Enter, "Enter", "Entrée", "Enter"},            {K::Backspace, "Backspace", "Retour arr.", "Backspace"},
-            {K::Tab, "Tab", "Tab", ""},                        {K::PageUp, "PageUp", "Page préc.", "Page Up"},
-            {K::PageDown, "PageDown", "Page suiv.", "Page Down"}, {K::End, "End", "Fin", "End"},
-            {K::Home, "Home", "Début", "Home"},                {K::Insert, "Insert", "Inser", "Insert"},
-            {K::Delete, "Delete", "Suppr", "Delete"},          {K::Add, "Add", "Pavé +", "Num +"},
-            {K::Subtract, "Subtract", "Pavé -", "Num -"},      {K::Multiply, "Multiply", "Pavé *", "Num *"},
-            {K::Divide, "Divide", "Pavé /", "Num /"},          {K::Left, "Left", "←", ""},
-            {K::Right, "Right", "→", ""},                      {K::Up, "Up", "↑", ""},
-            {K::Down, "Down", "↓", ""},                        {K::Pause, "Pause", "Pause", ""},
+            {Touche::Escape, "Escape", "Échap", "Esc"},           {Touche::LControl, "LControl", "Ctrl G", "L Ctrl"},
+            {Touche::LShift, "LShift", "Maj G", "L Shift"},       {Touche::LAlt, "LAlt", "Alt", ""},
+            {Touche::LSystem, "LSystem", "Système G", "L Super"}, {Touche::RControl, "RControl", "Ctrl D", "R Ctrl"},
+            {Touche::RShift, "RShift", "Maj D", "R Shift"},       {Touche::RAlt, "RAlt", "Alt Gr", ""},
+            {Touche::RSystem, "RSystem", "Système D", "R Super"}, {Touche::Menu, "Menu", "Menu", ""},
+            {Touche::LBracket, "LBracket", "[", ""},              {Touche::RBracket, "RBracket", "]", ""},
+            {Touche::Semicolon, "Semicolon", ";", ""},            {Touche::Comma, "Comma", ",", ""},
+            {Touche::Period, "Period", ".", ""},                  {Touche::Apostrophe, "Apostrophe", "'", ""},
+            {Touche::Slash, "Slash", "/", ""},                    {Touche::Backslash, "Backslash", "\\", ""},
+            {Touche::Grave, "Grave", "`", ""},                    {Touche::Equal, "Equal", "=", ""},
+            {Touche::Hyphen, "Hyphen", "-", ""},                  {Touche::Space, "Space", "Espace", "Space"},
+            {Touche::Enter, "Enter", "Entrée", "Enter"},          {Touche::Backspace, "Backspace", "Retour arr.", "Backspace"},
+            {Touche::Tab, "Tab", "Tab", ""},                      {Touche::PageUp, "PageUp", "Page préc.", "Page Up"},
+            {Touche::PageDown, "PageDown", "Page suiv.", "Page Down"}, {Touche::End, "End", "Fin", "End"},
+            {Touche::Home, "Home", "Début", "Home"},              {Touche::Insert, "Insert", "Inser", "Insert"},
+            {Touche::Delete, "Delete", "Suppr", "Delete"},        {Touche::Add, "Add", "Pavé +", "Num +"},
+            {Touche::Subtract, "Subtract", "Pavé -", "Num -"},    {Touche::Multiply, "Multiply", "Pavé *", "Num *"},
+            {Touche::Divide, "Divide", "Pavé /", "Num /"},        {Touche::Left, "Left", "←", ""},
+            {Touche::Right, "Right", "→", ""},                    {Touche::Up, "Up", "↑", ""},
+            {Touche::Down, "Down", "↓", ""},                      {Touche::Pause, "Pause", "Pause", ""},
         };
         t.insert(t.end(), autres.begin(), autres.end());
         return t;
@@ -69,27 +75,28 @@ const std::vector<InfoTouche>& Table() {
 }
 
 const InfoTouche* Chercher(int code) {
-    for (const InfoTouche& info : Table())
-        if (info.code == code) return &info;
-    return nullptr;
+    const auto codeDe = [](const InfoTouche& info) { return touches::CodeTouche(info.touche); };
+    const auto trouvee = std::ranges::find(Table(), code, codeDe);
+    return trouvee == Table().end() ? nullptr : &*trouvee;
 }
 
 // Nom des axes pour le fichier : « AxeX+ », « AxePovY- »...
-const char* NOMS_AXES[] = {"X", "Y", "Z", "R", "U", "V", "PovX", "PovY"};
+constexpr std::array<std::string_view, manette::NB_AXES> NOMS_AXES = {"X", "Y", "Z", "R", "U", "V", "PovX", "PovY"};
+
+std::string_view NomAxe(int code) {
+    return NOMS_AXES[static_cast<size_t>(manette::Axe(code))];
+}
 
 std::string NomEntreeManette(int code) {
-    if (manette::EstBouton(code))
-        return std::string(Tr("Bouton ", "Button ")) + std::to_string(code - manette::BASE_BOUTON + 1);
+    if (manette::EstBouton(code)) return std::format("{}{}", Tr("Bouton ", "Button "), code - manette::BASE_BOUTON + 1);
 
-    const auto axe = manette::Axe(code);
     const bool positif = manette::Positif(code);
-    switch (axe) {
-        case sf::Joystick::X:    return std::string("Stick ") + (positif ? "→" : "←");
-        case sf::Joystick::Y:    return std::string("Stick ") + (positif ? "↓" : "↑");
-        case sf::Joystick::PovX: return std::string(Tr("Croix ", "D-pad ")) + (positif ? "→" : "←");
-        case sf::Joystick::PovY: return std::string(Tr("Croix ", "D-pad ")) + (positif ? "↑" : "↓");
-        default:
-            return std::string(Tr("Axe ", "Axis ")) + NOMS_AXES[static_cast<size_t>(axe)] + (positif ? "+" : "-");
+    switch (manette::Axe(code)) {
+        case sf::Joystick::Axis::X:    return std::format("Stick {}", positif ? "→" : "←");
+        case sf::Joystick::Axis::Y:    return std::format("Stick {}", positif ? "↓" : "↑");
+        case sf::Joystick::Axis::PovX: return std::format("{}{}", Tr("Croix ", "D-pad "), positif ? "→" : "←");
+        case sf::Joystick::Axis::PovY: return std::format("{}{}", Tr("Croix ", "D-pad "), positif ? "↑" : "↓");
+        default:                       return std::format("{}{}{}", Tr("Axe ", "Axis "), NomAxe(code), positif ? '+' : '-');
     }
 }
 
@@ -99,9 +106,10 @@ Langue LangueSysteme() {
     return PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_FRENCH ? Langue::Francais : Langue::Anglais;
 #else
     for (const char* variable : {"LC_ALL", "LC_MESSAGES", "LANG"}) {
-        const char* valeur = std::getenv(variable);
-        if (valeur && *valeur && std::string(valeur) != "C" && std::string(valeur) != "POSIX")
-            return std::string(valeur).rfind("fr", 0) == 0 ? Langue::Francais : Langue::Anglais;
+        const char* brute = std::getenv(variable);
+        const std::string_view valeur = brute ? brute : "";
+        if (!valeur.empty() && valeur != "C" && valeur != "POSIX")
+            return valeur.starts_with("fr") ? Langue::Francais : Langue::Anglais;
     }
     return Langue::Francais;
 #endif
@@ -111,32 +119,33 @@ Langue LangueSysteme() {
 
 namespace touches {
 
-std::optional<int> Code(const std::string& identifiant) {
+std::optional<int> Code(std::string_view identifiant) {
     for (const InfoTouche& info : Table())
-        if (info.identifiant == identifiant) return info.code;
+        if (info.identifiant == identifiant) return CodeTouche(info.touche);
 
-    if (identifiant.rfind("Bouton", 0) == 0) {
-        const std::string numero = identifiant.substr(6);
-        if (numero.empty() || numero.size() > 2 || numero.find_first_not_of("0123456789") != std::string::npos)
+    if (identifiant.starts_with("Bouton")) {
+        // Un ou deux chiffres, sans signe
+        const std::string_view numero = identifiant.substr(6);
+        if (numero.empty() || numero.size() > 2 || numero.find_first_not_of("0123456789") != std::string_view::npos)
             return std::nullopt;
-        const int bouton = std::stoi(numero);
-        if (bouton < manette::NB_BOUTONS) return manette::CodeBouton(static_cast<unsigned>(bouton));
-        return std::nullopt;
+        int bouton = 0;
+        const auto resultat = std::from_chars(numero.data(), numero.data() + numero.size(), bouton);
+        if (resultat.ec != std::errc{} || bouton >= manette::NB_BOUTONS) return std::nullopt;
+        return manette::CodeBouton(static_cast<unsigned>(bouton));
     }
-    if (identifiant.rfind("Axe", 0) == 0 && identifiant.size() > 4) {
+    if (identifiant.starts_with("Axe") && identifiant.size() > 4) {
         const char signe = identifiant.back();
-        const std::string nom = identifiant.substr(3, identifiant.size() - 4);
         if (signe != '+' && signe != '-') return std::nullopt;
-        for (int a = 0; a < manette::NB_AXES; a++)
-            if (nom == NOMS_AXES[a]) return manette::CodeAxe(static_cast<sf::Joystick::Axis>(a), signe == '+');
+        const auto axe = std::ranges::find(NOMS_AXES, identifiant.substr(3, identifiant.size() - 4));
+        if (axe != NOMS_AXES.end())
+            return manette::CodeAxe(static_cast<sf::Joystick::Axis>(axe - NOMS_AXES.begin()), signe == '+');
     }
     return std::nullopt;
 }
 
 std::string Identifiant(int code) {
-    if (manette::EstBouton(code)) return "Bouton" + std::to_string(code - manette::BASE_BOUTON);
-    if (manette::EstManette(code))
-        return std::string("Axe") + NOMS_AXES[static_cast<size_t>(manette::Axe(code))] + (manette::Positif(code) ? "+" : "-");
+    if (manette::EstBouton(code)) return std::format("Bouton{}", code - manette::BASE_BOUTON);
+    if (manette::EstManette(code)) return std::format("Axe{}{}", NomAxe(code), manette::Positif(code) ? '+' : '-');
     const InfoTouche* info = Chercher(code);
     return info ? info->identifiant : std::string{};
 }
@@ -164,28 +173,29 @@ sf::String NomAction(Action action) {
     return {};
 }
 
-bool Attribuable(int code) {
-    return code != K::Unknown && code != K::F11 && Chercher(code) != nullptr;
+bool Attribuable(sf::Keyboard::Key touche) {
+    return touche != Touche::Unknown && touche != Touche::F11 && Chercher(CodeTouche(touche)) != nullptr;
 }
 
 Reglages ParDefaut() {
-    using J = sf::Joystick;
+    using J = sf::Joystick::Axis;
     Reglages r;
     r.langue = LangueSysteme();
 
     // Secondaires d'abord : la dernière touche assignée devient la principale
-    r.AssignerTouche(Action::Gauche, K::Left);
-    r.AssignerTouche(Action::Droite, K::Right);
-    r.AssignerTouche(Action::DescenteDouce, K::Down);
-    r.AssignerTouche(Action::ChuteRapide, K::Space);
-    r.AssignerTouche(Action::TournerHoraire, K::Up);
-    r.AssignerTouche(Action::TournerHoraire, K::Enter);
-    r.AssignerTouche(Action::TournerAntiHoraire, K::RControl);
-    r.AssignerTouche(Action::Garder, K::C);
-    r.AssignerTouche(Action::Garder, K::RShift);
-    r.AssignerTouche(Action::Pause, K::Escape);
-    r.AssignerTouche(Action::Pause, K::P);
-    r.AssignerTouche(Action::Abandonner, K::A);
+    const auto assigner = [&r](Action action, Touche touche) { r.AssignerTouche(action, CodeTouche(touche)); };
+    assigner(Action::Gauche, Touche::Left);
+    assigner(Action::Droite, Touche::Right);
+    assigner(Action::DescenteDouce, Touche::Down);
+    assigner(Action::ChuteRapide, Touche::Space);
+    assigner(Action::TournerHoraire, Touche::Up);
+    assigner(Action::TournerHoraire, Touche::Enter);
+    assigner(Action::TournerAntiHoraire, Touche::RControl);
+    assigner(Action::Garder, Touche::C);
+    assigner(Action::Garder, Touche::RShift);
+    assigner(Action::Pause, Touche::Escape);
+    assigner(Action::Pause, Touche::P);
+    assigner(Action::Abandonner, Touche::A);
 
     // Disposition type Xbox : A=0, B=1, X=2, Y=3, LB=4, RB=5, Back=6, Start=7
     r.AssignerBouton(Action::Gauche, manette::CodeAxe(J::X, false));

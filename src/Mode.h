@@ -1,7 +1,7 @@
 #pragma once
 
 #include <optional>
-#include <string>
+#include <string_view>
 
 enum class Mode {
     Marathon, // niveaux croissants jusqu'à la défaite
@@ -28,7 +28,7 @@ struct ParametresPartie {
 namespace mode {
 
 // Identifiant utilisé dans les fichiers ("marathon", "sprint"...)
-const char* Identifiant(Mode m);
-std::optional<Mode> DepuisIdentifiant(const std::string& identifiant);
+std::string_view Identifiant(Mode m);
+std::optional<Mode> DepuisIdentifiant(std::string_view identifiant);
 
 } // namespace mode

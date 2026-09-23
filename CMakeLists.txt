@@ -1,25 +1,53 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.28...3.31) # 3.28 : minimum exigé par SFML 3.1
 project(TetrisC LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF) # aucun module C++20 : pas d'analyse des sources pour en chercher
 set(CMAKE_POSITION_INDEPENDENT_CODE ON) # exécutable PIE : ASLR complet
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # compile_commands.json pour clangd et les éditeurs
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Type de build" FORCE)
 endif()
 
-option(TETRIS_SFML_STATIQUE "Lier SFML en statique (utile sous Windows)" OFF)
+option(TETRIS_SFML_STATIQUE "SFML déjà installée : utiliser ses bibliothèques statiques (la SFML téléchargée l'est toujours)" OFF)
 option(TETRIS_SANITIZERS "Activer AddressSanitizer et UBSan (GCC/Clang)" OFF)
 option(TETRIS_TESTS "Compiler les tests de la logique" ON)
 option(TETRIS_NATIF "Optimiser pour le processeur de cette machine (-march=native) : binaire non portable" OFF)
 option(TETRIS_DURCISSEMENT "Options de compilation durcies (protection de pile, vérifications de la bibliothèque standard...)" ON)
 
-if(TETRIS_SFML_STATIQUE)
-    set(SFML_STATIC_LIBRARIES TRUE)
+# SFML 3 : celle du système si elle est assez récente, sinon téléchargée (archive vérifiée) et compilée avec le jeu
+set(TETRIS_SFML_COMPOSANTS Graphics Window System)
+if(WIN32)
+    list(APPEND TETRIS_SFML_COMPOSANTS Main) # WinMain de l'exécutable sans console
 endif()
-find_package(SFML 2.5 COMPONENTS graphics window system REQUIRED)
+if(TETRIS_SFML_STATIQUE)
+    set(SFML_STATIC_LIBRARIES ON)
+endif()
+
+include(FetchContent)
+FetchContent_Declare(SFML
+    URL https://github.com/SFML/SFML/archive/refs/tags/3.1.0.tar.gz
+    URL_HASH SHA256=91209a112c2bd0bc6f4ce0d5f3e413cfb48b57c0de59f5507dc81f71b1ad7a5c
+    DOWNLOAD_NO_PROGRESS ON
+    EXCLUDE_FROM_ALL
+    SYSTEM
+    FIND_PACKAGE_ARGS 3.1 QUIET COMPONENTS ${TETRIS_SFML_COMPOSANTS}
+)
+block()
+    # Seulement les modules utiles, en bibliothèques statiques : aucune bibliothèque SFML à livrer avec le jeu
+    set(BUILD_SHARED_LIBS OFF)
+    set(SFML_BUILD_AUDIO OFF)
+    set(SFML_BUILD_NETWORK OFF)
+    FetchContent_MakeAvailable(SFML)
+    if(SFML_FOUND)
+        message(STATUS "SFML ${SFML_VERSION} trouvée sur le système")
+    else()
+        message(STATUS "SFML 3.1.0 téléchargée et compilée avec le jeu")
+    endif()
+endblock()
 
 include(CheckPIESupported)
 check_pie_supported()
@@ -47,7 +75,8 @@ function(tetris_options cible)
         target_compile_options(${cible} PRIVATE -march=native)
     endif()
     if(MSVC)
-        target_compile_options(${cible} PRIVATE /W4 /guard:cf)
+        # /utf-8 : les textes accentués du code sont en UTF-8
+        target_compile_options(${cible} PRIVATE /W4 /utf-8 /guard:cf)
         target_link_options(${cible} PRIVATE /guard:cf /DYNAMICBASE /NXCOMPAT)
     else()
         target_compile_options(${cible} PRIVATE -Wall -Wextra -Wpedantic)
@@ -102,15 +131,15 @@ add_executable(Tetris WIN32
     src/Texte.cpp
     src/Touches.cpp
 )
-target_link_libraries(Tetris PRIVATE tetris_logique sfml-graphics sfml-window sfml-system)
+target_link_libraries(Tetris PRIVATE tetris_logique SFML::Graphics SFML::Window SFML::System)
 if(WIN32)
-    target_link_libraries(Tetris PRIVATE sfml-main)
+    target_link_libraries(Tetris PRIVATE SFML::Main)
 endif()
 tetris_options(Tetris)
 
 # Copie les assets à côté de l'exécutable
 add_custom_command(TARGET Tetris POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/asset $<TARGET_FILE_DIR:Tetris>/asset
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/asset $<TARGET_FILE_DIR:Tetris>/asset
 )
 
 if(TETRIS_TESTS)

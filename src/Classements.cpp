@@ -3,22 +3,24 @@
 #include "Fichiers.h"
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <ctime>
 #include <sstream>
+#include <string_view>
 
 namespace {
 
 template <typename T>
-bool Nombre(const std::string& texte, T& valeur) {
+bool Nombre(std::string_view texte, T& valeur) {
     const char* fin = texte.data() + texte.size();
-    auto [ptr, erreur] = std::from_chars(texte.data(), fin, valeur);
+    const auto [ptr, erreur] = std::from_chars(texte.data(), fin, valeur);
     return erreur == std::errc{} && ptr == fin;
 }
 
 // Date venue du fichier : seulement chiffres, espaces, « - » et « : », 16 caractères au plus
-bool DateValide(const std::string& date) {
-    return date.size() <= 16 && std::all_of(date.begin(), date.end(), [](char c) {
+bool DateValide(std::string_view date) {
+    return date.size() <= 16 && std::ranges::all_of(date, [](char c) {
                return (c >= '0' && c <= '9') || c == ' ' || c == '-' || c == ':';
            });
 }
@@ -34,8 +36,8 @@ bool Classements::Meilleure(Mode mode, const EntreeClassement& a, const EntreeCl
 int Classements::Ajouter(Mode mode, const EntreeClassement& entree) {
     auto& table = tables[static_cast<size_t>(mode)];
     // Après les ex æquo déjà présents : à égalité, le plus ancien reste devant
-    const auto position = std::upper_bound(table.begin(), table.end(), entree,
-                                           [mode](const auto& a, const auto& b) { return Meilleure(mode, a, b); });
+    const auto position =
+        std::ranges::upper_bound(table, entree, [mode](const auto& a, const auto& b) { return Meilleure(mode, a, b); });
     const auto rang = static_cast<size_t>(position - table.begin());
     if (rang >= TAILLE) return -1;
 
@@ -110,8 +112,8 @@ std::string DateActuelle() {
 #else
     if (!localtime_r(&maintenant, &local)) return {};
 #endif
-    char tampon[20];
-    return std::strftime(tampon, sizeof tampon, "%Y-%m-%d %H:%M", &local) ? std::string(tampon) : std::string{};
+    std::array<char, 20> tampon{};
+    return std::string(tampon.data(), std::strftime(tampon.data(), tampon.size(), "%Y-%m-%d %H:%M", &local));
 }
 
 } // namespace classements

@@ -56,65 +56,54 @@ bool EstEnfonce(int code) {
     return false;
 }
 
-int Traducteur::Traduire(const sf::Event& evenement, std::array<Entree, 2>& sortie) {
-    switch (evenement.type) {
-        case sf::Event::JoystickButtonPressed:
-        case sf::Event::JoystickButtonReleased:
-            if (evenement.joystickButton.button >= NB_BOUTONS) return 0;
-            sortie[0] = {CodeBouton(evenement.joystickButton.button),
-                         evenement.type == sf::Event::JoystickButtonPressed};
-            return 1;
+Entrees Traducteur::Traduire(const sf::Event& evenement) {
+    Entrees entrees;
+    if (const auto* appui = evenement.getIf<sf::Event::JoystickButtonPressed>()) {
+        if (appui->button < NB_BOUTONS) entrees.Ajouter({CodeBouton(appui->button), true});
+    } else if (const auto* relache = evenement.getIf<sf::Event::JoystickButtonReleased>()) {
+        if (relache->button < NB_BOUTONS) entrees.Ajouter({CodeBouton(relache->button), false});
+    } else if (const auto* mouvement = evenement.getIf<sf::Event::JoystickMoved>()) {
+        const unsigned j = mouvement->joystickId;
+        const auto axe = static_cast<std::size_t>(mouvement->axis);
+        if (j >= sf::Joystick::Count || axe >= NB_AXES) return entrees;
 
-        case sf::Event::JoystickMoved: {
-            const unsigned j = evenement.joystickMove.joystickId;
-            const auto axe = evenement.joystickMove.axis;
-            if (j >= sf::Joystick::Count || static_cast<int>(axe) >= NB_AXES) return 0;
+        std::int8_t& precedent = sens[j][axe];
+        const std::int8_t nouveau = Sens(mouvement->position, precedent);
+        if (nouveau == precedent) return entrees;
 
-            std::int8_t& precedent = sens[j][static_cast<size_t>(axe)];
-            const std::int8_t nouveau = Sens(evenement.joystickMove.position, precedent);
-            if (nouveau == precedent) return 0;
-
-            int n = 0;
-            if (precedent != 0) sortie[n++] = {CodeAxe(axe, precedent > 0), false};
-            if (nouveau != 0) sortie[n++] = {CodeAxe(axe, nouveau > 0), true};
-            precedent = nouveau;
-            return n;
-        }
-
-        case sf::Event::JoystickDisconnected:
-            if (evenement.joystickConnect.joystickId < sf::Joystick::Count)
-                sens[evenement.joystickConnect.joystickId].fill(0);
-            return 0;
-
-        default:
-            return 0;
+        if (precedent != 0) entrees.Ajouter({CodeAxe(mouvement->axis, precedent > 0), false});
+        if (nouveau != 0) entrees.Ajouter({CodeAxe(mouvement->axis, nouveau > 0), true});
+        precedent = nouveau;
+    } else if (const auto* deconnexion = evenement.getIf<sf::Event::JoystickDisconnected>()) {
+        if (deconnexion->joystickId < sf::Joystick::Count) sens[deconnexion->joystickId].fill(0);
     }
+    return entrees;
 }
 
 std::optional<sf::Event> VersClavier(const Entree& entree) {
     if (!entree.appui) return std::nullopt;
 
-    sf::Keyboard::Key touche = sf::Keyboard::Unknown;
+    using Touche = sf::Keyboard::Key;
+    Touche touche = Touche::Unknown;
     if (EstBouton(entree.code)) {
         switch (entree.code - BASE_BOUTON) {
-            case 0: touche = sf::Keyboard::Enter; break;  // A
-            case 1:                                        // B
-            case 7: touche = sf::Keyboard::Escape; break;  // Start
+            case 0: touche = Touche::Enter; break;  // A
+            case 1:                                 // B
+            case 7: touche = Touche::Escape; break; // Start
             default: break;
         }
     } else {
-        const auto axe = Axe(entree.code);
         const bool positif = Positif(entree.code);
-        if (axe == sf::Joystick::X || axe == sf::Joystick::PovX) touche = positif ? sf::Keyboard::Right : sf::Keyboard::Left;
-        else if (axe == sf::Joystick::Y) touche = positif ? sf::Keyboard::Down : sf::Keyboard::Up;
-        else if (axe == sf::Joystick::PovY) touche = positif ? sf::Keyboard::Up : sf::Keyboard::Down; // croix : + = haut
+        switch (Axe(entree.code)) {
+            case sf::Joystick::Axis::X:
+            case sf::Joystick::Axis::PovX: touche = positif ? Touche::Right : Touche::Left; break;
+            case sf::Joystick::Axis::Y:    touche = positif ? Touche::Down : Touche::Up; break;
+            case sf::Joystick::Axis::PovY: touche = positif ? Touche::Up : Touche::Down; break; // croix : + = haut
+            default: break;
+        }
     }
-    if (touche == sf::Keyboard::Unknown) return std::nullopt;
-
-    sf::Event clavier{};
-    clavier.type = sf::Event::KeyPressed;
-    clavier.key.code = touche;
-    return clavier;
+    if (touche == Touche::Unknown) return std::nullopt;
+    return sf::Event::KeyPressed{.code = touche, .scancode = sf::Keyboard::Scan::Unknown};
 }
 
 } // namespace manette

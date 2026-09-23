@@ -12,8 +12,8 @@
 
 namespace {
 
-const float LARGEUR_LOGIQUE = static_cast<float>(cst::FENETRE_LARGEUR);
-const float HAUTEUR_LOGIQUE = static_cast<float>(cst::FENETRE_HAUTEUR);
+constexpr float LARGEUR_LOGIQUE = static_cast<float>(cst::FENETRE_LARGEUR);
+constexpr float HAUTEUR_LOGIQUE = static_cast<float>(cst::FENETRE_HAUTEUR);
 
 } // namespace
 
@@ -61,18 +61,18 @@ void Application::AppliquerPleinEcran() {
     const sf::VideoMode bureau = sf::VideoMode::getDesktopMode();
 
     if (reglages.pleinEcran) {
-        fenetre.create(bureau, "Tetris", sf::Style::Fullscreen);
+        fenetre.create(bureau, "Tetris", sf::State::Fullscreen);
     } else {
         // Plus grande taille (par pas de 0,25) qui tient dans 80 % de l'écran
-        float facteur = std::min(static_cast<float>(bureau.width) * 0.8f / LARGEUR_LOGIQUE,
-                                 static_cast<float>(bureau.height) * 0.8f / HAUTEUR_LOGIQUE);
+        const sf::Vector2f ecran(bureau.size);
+        float facteur = std::min(ecran.x * 0.8f / LARGEUR_LOGIQUE, ecran.y * 0.8f / HAUTEUR_LOGIQUE);
         facteur = std::max(1.f, std::floor(facteur * 4.f) / 4.f);
-        const unsigned largeur = static_cast<unsigned>(LARGEUR_LOGIQUE * facteur);
-        const unsigned hauteur = static_cast<unsigned>(HAUTEUR_LOGIQUE * facteur);
+        const sf::Vector2u taille(static_cast<unsigned>(LARGEUR_LOGIQUE * facteur),
+                                  static_cast<unsigned>(HAUTEUR_LOGIQUE * facteur));
 
-        fenetre.create(sf::VideoMode(largeur, hauteur), "Tetris", sf::Style::Default);
-        if (bureau.width > largeur && bureau.height > hauteur)
-            fenetre.setPosition({static_cast<int>(bureau.width - largeur) / 2, static_cast<int>(bureau.height - hauteur) / 2});
+        fenetre.create(sf::VideoMode(taille), "Tetris", sf::Style::Default);
+        if (bureau.size.x > taille.x && bureau.size.y > taille.y)
+            fenetre.setPosition(sf::Vector2i(bureau.size - taille) / 2);
     }
 
     AppliquerSynchroVerticale();
@@ -99,28 +99,24 @@ void Application::AjusterVue() {
 }
 
 bool Application::GererEvenement(const sf::Event& evenement) {
-    switch (evenement.type) {
-        case sf::Event::Closed:
-            fenetre.close();
-            return true;
-        case sf::Event::Resized:
-            AjusterVue();
-            return true;
-        case sf::Event::GainedFocus:
-            aLeFocus = true;
-            return false; // laissé aux boucles qui veulent aussi réagir
-        case sf::Event::LostFocus:
-            aLeFocus = false;
-            return false;
-        case sf::Event::KeyPressed:
-            if (evenement.key.code != sf::Keyboard::F11) return false;
-            reglages.pleinEcran = !reglages.pleinEcran;
-            AppliquerPleinEcran();
-            SauverReglages();
-            return true;
-        default:
-            return false;
+    if (evenement.is<sf::Event::Closed>()) {
+        fenetre.close();
+        return true;
     }
+    if (evenement.is<sf::Event::Resized>()) {
+        AjusterVue();
+        return true;
+    }
+    // Focus suivi ici, mais laissé aussi aux boucles qui veulent y réagir
+    if (evenement.is<sf::Event::FocusGained>()) aLeFocus = true;
+    if (evenement.is<sf::Event::FocusLost>()) aLeFocus = false;
+
+    const auto* touche = evenement.getIf<sf::Event::KeyPressed>();
+    if (!touche || touche->code != sf::Keyboard::Key::F11) return false;
+    reglages.pleinEcran = !reglages.pleinEcran;
+    AppliquerPleinEcran();
+    SauverReglages();
+    return true;
 }
 
 void Application::Afficher() {
@@ -153,7 +149,7 @@ const sf::Texture& Application::Capturer(const std::function<void(sf::RenderTarg
     if (taille.x == 0 || taille.y == 0) taille = {cst::FENETRE_LARGEUR, cst::FENETRE_HAUTEUR}; // fenêtre réduite
 
     if (scene.getSize() != taille) {
-        if (!scene.create(taille.x, taille.y)) {
+        if (!scene.resize(taille)) {
             std::cerr << "Impossible de créer la texture de capture\n";
             return scene.getTexture();
         }

@@ -8,8 +8,8 @@
 #include <SFML/Graphics.hpp>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string>
-#include <vector>
 
 // Ce que l'écran de fin de partie affiche
 struct ResumePartie {
@@ -47,7 +47,7 @@ public:
     Choix FinDePartie(const sf::Texture& scene, const ResumePartie& resume, const std::function<void()>& revoir);
 
     // Prochain événement de la fenêtre ; les entrées de manette sont traduites en touches de menu
-    bool Lire(sf::Event& evenement);
+    std::optional<sf::Event> Lire();
 
 private:
     // Fond d'un sous-menu : animé (défilement du menu principal) ou figé (capture floutée de la partie)
@@ -66,8 +66,8 @@ private:
     sf::Shader blurShader;
     bool shaderOk = false;
     sf::RenderTexture flouReduit, flouIntermediaire, fondFlou;
-    sf::Text texte;
-    sf::VertexArray decor{sf::Triangles}; // petites formes des titres
+    sf::Text texte{app.police};
+    sf::VertexArray decor{sf::PrimitiveType::Triangles}; // petites formes des titres
     sf::Clock horlogeRepos; // depuis le dernier affichage d'un écran immobile
     manette::Traducteur traducteur;
     bool traduireManette = true; // désactivé pendant la saisie d'un bouton dans Commandes
@@ -75,11 +75,11 @@ private:
     std::optional<ParametresPartie> ChoisirMode(const Fond& fond, const Classements& classements);
     void AfficherClassements(const Fond& fond, const Classements& classements);
     void Options(const Fond& fond);
-    void EcranReglages(const Fond& fond, const sf::String& titre, const std::vector<ElementReglage>& elements);
+    void EcranReglages(const Fond& fond, const sf::String& titre, std::span<const ElementReglage> elements);
     void Commandes(const Fond& fond);
     bool ConfirmerSurFond(const Fond& fond, const std::string& question);
 
-    bool ProchainEvenement(sf::Event& evenement, bool& aJour, bool anime);
+    std::optional<sf::Event> ProchainEvenement(bool& aJour, bool anime);
     void AfficherImage(bool& aJour);
 
     void PreparerFlou(const sf::Texture& scene);

@@ -3,10 +3,14 @@
 #include "Reglages.h"
 
 #include <SFML/Graphics.hpp>
+#include <array>
+#include <cstddef>
 #include <string>
+#include <string_view>
+#include <utility>
 
 // Convertit une chaîne UTF-8 (accents, flèches) pour SFML
-sf::String Utf8(const std::string& texte);
+sf::String Utf8(std::string_view texte);
 
 // Langue de l'interface
 void DefinirLangue(Langue langue);
@@ -29,3 +33,12 @@ void PlacerTexte(sf::Text& texte, unsigned tailleLogique, sf::Vector2f centre, f
 
 // Comme PlacerTexte, mais réduit le texte s'il dépasse `largeurMax` (unités logiques)
 void PlacerTexteBorne(sf::Text& texte, unsigned tailleLogique, sf::Vector2f centre, float echelle, float largeurMax);
+
+// N objets construits avec les mêmes arguments. sf::Text n'a pas de constructeur par défaut :
+// les tableaux de textes (ou d'objets qui en contiennent) se remplissent ainsi avec leur police.
+template <typename T, std::size_t N, typename... Arguments>
+std::array<T, N> Tableau(const Arguments&... arguments) {
+    return [&]<std::size_t... I>(std::index_sequence<I...>) {
+        return std::array<T, N>{(static_cast<void>(I), T(arguments...))...};
+    }(std::make_index_sequence<N>{});
+}

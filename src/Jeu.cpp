@@ -4,6 +4,18 @@
 #include <cmath>
 #include <limits>
 
+namespace {
+
+bool Pleine(const std::array<int, cst::LARGEUR>& ligne) {
+    return std::ranges::all_of(ligne, [](int v) { return v != 0; });
+}
+
+bool Occupee(const std::array<int, cst::LARGEUR>& ligne) {
+    return std::ranges::any_of(ligne, [](int v) { return v != 0; });
+}
+
+} // namespace
+
 Jeu::Jeu(unsigned graine, const Grille& depart, ParametresPartie parametresPartie)
     : grille(depart), parametres(parametresPartie), graine(graine), sac(graine) {
     evenements.reserve(32);
@@ -157,11 +169,10 @@ void Jeu::ChuteRapide() {
     active.y += distance;
     AjouterScore(2LL * std::max(1, niveau) * distance);
 
-    EvenementJeu chute{EvenementJeu::Type::ChuteRapide};
-    chute.cases = CasesPiece();
-    chute.couleur = piece::Couleur(active.type);
-    chute.distance = distance;
-    Signaler(chute);
+    Signaler({.type = EvenementJeu::Type::ChuteRapide,
+              .cases = CasesPiece(),
+              .couleur = piece::Couleur(active.type),
+              .distance = distance});
 
     Verrouiller();
 }
@@ -257,15 +268,12 @@ void Jeu::Verrouiller() {
     for (const Case& c : CasesPiece()) grille[c.y][c.x] = couleur;
     stats.pieces++;
 
-    EvenementJeu verrou{EvenementJeu::Type::Verrouillage};
-    verrou.cases = CasesPiece();
-    verrou.couleur = couleur;
-    Signaler(verrou);
+    Signaler({.type = EvenementJeu::Type::Verrouillage, .cases = CasesPiece(), .couleur = couleur});
 
     // Lignes pleines relevées avant l'effacement, pour les effets
-    EvenementJeu lignesPleines{EvenementJeu::Type::Lignes};
+    EvenementJeu lignesPleines{.type = EvenementJeu::Type::Lignes};
     for (int y = 0; y < cst::HAUTEUR && lignesPleines.nbLignes < 4; y++) {
-        if (std::all_of(grille[y].begin(), grille[y].end(), [](int v) { return v != 0; })) {
+        if (Pleine(grille[y])) {
             lignesPleines.lignes[lignesPleines.nbLignes] = y;
             lignesPleines.contenu[lignesPleines.nbLignes] = grille[y];
             lignesPleines.nbLignes++;
@@ -280,11 +288,7 @@ void Jeu::Verrouiller() {
         lignesPleines.points = score - scoreAvant;
         Signaler(lignesPleines);
     }
-    if (niveau > niveauAvant) {
-        EvenementJeu passage{EvenementJeu::Type::Niveau};
-        passage.niveau = niveau;
-        Signaler(passage);
-    }
+    if (niveau > niveauAvant) Signaler({.type = EvenementJeu::Type::Niveau, .niveau = niveau});
 
     if (parametres.mode == Mode::Sprint && lignes >= parametres.sprintLignes) {
         objectifAtteint = true;
@@ -292,17 +296,13 @@ void Jeu::Verrouiller() {
     }
 
     // Perdu s'il reste un bloc au-dessus de la ligne limite ; en Zen, la pile est vidée à la place
-    bool depasse = false;
-    for (int y = 0; y < cst::LIGNES_ZONE_LIMITE && !depasse; y++)
-        for (int valeur : grille[y])
-            if (valeur != 0) depasse = true;
-    if (depasse) {
+    if (std::ranges::any_of(std::span(grille).first<cst::LIGNES_ZONE_LIMITE>(), Occupee)) {
         if (parametres.mode != Mode::Zen) {
             perdu = true;
             return;
         }
         for (auto& ligne : grille) ligne.fill(0);
-        Signaler({EvenementJeu::Type::Nettoyage});
+        Signaler({.type = EvenementJeu::Type::Nettoyage});
     }
 
     gardeUtilisee = false;
@@ -315,8 +315,7 @@ int Jeu::EffacerLignes() {
     int ecriture = cst::HAUTEUR - 1;
 
     for (int y = cst::HAUTEUR - 1; y >= 0; y--) {
-        bool pleine = std::all_of(grille[y].begin(), grille[y].end(), [](int v) { return v != 0; });
-        if (pleine) {
+        if (Pleine(grille[y])) {
             effacees++;
             continue;
         }

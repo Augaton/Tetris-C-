@@ -6,15 +6,16 @@
 #include <SFML/Graphics.hpp>
 #include <array>
 #include <random>
+#include <span>
 #include <vector>
 
 // Effets visuels légers : tout est calculé sur le processeur et dessiné en un seul appel
-// (quads non texturés), sans shader. Nombre d'éléments borné, aucune allocation en jeu.
+// (triangles non texturés), sans shader. Nombre d'éléments borné, aucune allocation en jeu.
 class Effets {
 public:
     explicit Effets(const sf::Font& police);
 
-    void Traiter(const std::vector<EvenementJeu>& evenements, const Reglages& reglages);
+    void Traiter(std::span<const EvenementJeu> evenements, const Reglages& reglages);
     void MettreAJour(float dt);
 
     // « NOUVEAU RECORD ! » quand le meilleur score est dépassé en cours de partie
@@ -45,6 +46,7 @@ private:
         float vie, duree;
     };
     struct TexteFlottant {
+        explicit TexteFlottant(const sf::Font& police) : texte(police) {}
         sf::Text texte;
         sf::Vector2f depart;
         unsigned taille = 0;
@@ -59,7 +61,7 @@ private:
     std::vector<Eclat> eclats;
     std::vector<Trainee> trainees;
     std::array<TexteFlottant, 4> textes;
-    sf::VertexArray sommets{sf::Quads};
+    sf::VertexArray sommets{sf::PrimitiveType::Triangles};
 
     float secousse = 0.f;
     float tempsSecousse = 0.f;

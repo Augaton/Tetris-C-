@@ -5,6 +5,7 @@
 #include <cctype>
 #include <charconv>
 #include <string>
+#include <string_view>
 #include <system_error>
 
 namespace fs = std::filesystem;
@@ -19,13 +20,13 @@ long long Charger(const fs::path& chemin) {
     const auto contenu = fichiers::LireTout(chemin);
     if (!contenu) return 0;
 
-    std::string ligne = contenu->substr(0, contenu->find('\n'));
-    while (!ligne.empty() && std::isspace(static_cast<unsigned char>(ligne.back()))) ligne.pop_back();
+    std::string_view ligne(*contenu);
+    ligne = ligne.substr(0, ligne.find('\n'));
+    while (!ligne.empty() && std::isspace(static_cast<unsigned char>(ligne.back()))) ligne.remove_suffix(1);
 
     long long valeur = 0;
-    const char* debut = ligne.data();
-    const char* fin = debut + ligne.size();
-    auto [ptr, erreur] = std::from_chars(debut, fin, valeur);
+    const char* fin = ligne.data() + ligne.size();
+    const auto [ptr, erreur] = std::from_chars(ligne.data(), fin, valeur);
     if (erreur != std::errc{} || ptr != fin || valeur < 0) return 0;
     return valeur;
 }

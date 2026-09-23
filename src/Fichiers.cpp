@@ -67,7 +67,7 @@ std::optional<std::string> LireTout(const fs::path& chemin, std::size_t tailleMa
     return contenu;
 }
 
-bool EcrireAtomique(const fs::path& chemin, const std::string& contenu) {
+bool EcrireAtomique(const fs::path& chemin, std::string_view contenu) {
     std::error_code erreur;
     if (chemin.has_parent_path()) {
         fs::create_directories(chemin.parent_path(), erreur);
@@ -88,7 +88,7 @@ bool EcrireAtomique(const fs::path& chemin, const std::string& contenu) {
     size_t ecrits = 0;
     while (ok && ecrits < contenu.size()) {
         DWORD morceau = 0;
-        const DWORD aEcrire = static_cast<DWORD>(std::min<size_t>(contenu.size() - ecrits, 1 << 20));
+        const auto aEcrire = static_cast<DWORD>(std::min<size_t>(contenu.size() - ecrits, 1 << 20));
         ok = WriteFile(fichier, contenu.data() + ecrits, aEcrire, &morceau, nullptr) && morceau > 0;
         ecrits += morceau;
     }

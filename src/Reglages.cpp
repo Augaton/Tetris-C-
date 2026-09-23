@@ -5,28 +5,30 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <ranges>
 #include <sstream>
 #include <utility>
 #include <vector>
 
 namespace {
 
-constexpr std::array<const char*, NB_ACTIONS> IDENTIFIANTS = {
+constexpr std::array<std::string_view, NB_ACTIONS> IDENTIFIANTS = {
     "gauche", "droite", "descente_douce", "chute_rapide", "tourner_horaire",
     "tourner_antihoraire", "garder", "pause", "abandonner",
 };
 
-std::string Nettoyer(const std::string& texte) {
-    size_t debut = 0, fin = texte.size();
-    while (debut < fin && std::isspace(static_cast<unsigned char>(texte[debut]))) debut++;
-    while (fin > debut && std::isspace(static_cast<unsigned char>(texte[fin - 1]))) fin--;
-    return texte.substr(debut, fin - debut);
+// Sans les espaces du début et de la fin (vue sur le texte d'origine, sans copie)
+std::string_view Nettoyer(std::string_view texte) {
+    const auto espace = [](char c) { return std::isspace(static_cast<unsigned char>(c)) != 0; };
+    while (!texte.empty() && espace(texte.front())) texte.remove_prefix(1);
+    while (!texte.empty() && espace(texte.back())) texte.remove_suffix(1);
+    return texte;
 }
 
-std::optional<int> Entier(const std::string& texte) {
+std::optional<int> Entier(std::string_view texte) {
     int valeur = 0;
     const char* fin = texte.data() + texte.size();
-    auto [ptr, erreur] = std::from_chars(texte.data(), fin, valeur);
+    const auto [ptr, erreur] = std::from_chars(texte.data(), fin, valeur);
     if (erreur != std::errc{} || ptr != fin) return std::nullopt;
     return valeur;
 }
@@ -47,10 +49,25 @@ void Assigner(Reglages::TableTouches& table, Action action, int code) {
     cible[0] = code;
 }
 
-std::optional<bool> Booleen(const std::string& texte) {
+std::optional<bool> Booleen(std::string_view texte) {
     if (texte == "oui" || texte == "1" || texte == "true") return true;
     if (texte == "non" || texte == "0" || texte == "false") return false;
     return std::nullopt;
+}
+
+// « A, Left » : noms séparés par des virgules, le premier devient la touche principale
+void LireTouches(Reglages::TableTouches& table, Action action, std::string_view valeur,
+                 const reglages::NomVersCode& codeTouche) {
+    std::vector<int> codes;
+    for (const auto nom : std::views::split(valeur, ','))
+        if (auto code = codeTouche(Nettoyer(std::string_view(nom.begin(), nom.end())))) codes.push_back(*code);
+    // Valeur vide = aucune touche voulue ; noms tous invalides = on garde le défaut
+    if (!valeur.empty() && codes.empty()) return;
+
+    table[static_cast<size_t>(action)].fill(AUCUNE_TOUCHE);
+    // En ordre inverse : la première listée devient la principale
+    for (int i = std::min<int>(static_cast<int>(codes.size()), TOUCHES_PAR_ACTION) - 1; i >= 0; i--)
+        Assigner(table, action, codes[static_cast<size_t>(i)]);
 }
 
 } // namespace
@@ -115,8 +132,8 @@ void Reglages::ReinitialiserOptions() {
 
 namespace reglages {
 
-const char* Identifiant(Action action) {
-    return IDENTIFIANTS[static_cast<int>(action)];
+std::string_view Identifiant(Action action) {
+    return IDENTIFIANTS[static_cast<size_t>(action)];
 }
 
 std::filesystem::path CheminFichier() {
@@ -126,16 +143,16 @@ std::filesystem::path CheminFichier() {
 Reglages Analyser(const std::string& contenu, const Reglages& defauts, const NomVersCode& codeTouche) {
     Reglages r = defauts;
     std::istringstream flux(contenu);
-    std::string ligne;
+    std::string brute;
 
-    while (std::getline(flux, ligne)) {
-        ligne = Nettoyer(ligne);
-        if (ligne.empty() || ligne[0] == '#') continue;
+    while (std::getline(flux, brute)) {
+        const std::string_view ligne = Nettoyer(brute);
+        if (ligne.empty() || ligne.front() == '#') continue;
 
         const size_t egal = ligne.find('=');
-        if (egal == std::string::npos) continue;
-        const std::string cle = Nettoyer(ligne.substr(0, egal));
-        const std::string valeur = Nettoyer(ligne.substr(egal + 1));
+        if (egal == std::string_view::npos) continue;
+        const std::string_view cle = Nettoyer(ligne.substr(0, egal));
+        const std::string_view valeur = Nettoyer(ligne.substr(egal + 1));
 
         auto nombre = [&](int& champ, const Bornes& bornes) {
             if (auto v = Entier(valeur)) champ = bornes.Limiter(*v);
@@ -175,29 +192,12 @@ Reglages Analyser(const std::string& contenu, const Reglages& defauts, const Nom
             if (auto m = mode::DepuisIdentifiant(valeur)) r.mode = *m;
         }
         else if (cle == "niveau_depart") nombre(r.niveauDepart, Bornes{0, mode::NIVEAU_DEPART_MAX, 1});
-        else if (cle.rfind("touche.", 0) == 0 || cle.rfind("manette.", 0) == 0) {
-            const bool estManette = cle[0] == 'm';
-            const std::string id = cle.substr(estManette ? 8 : 7);
-            for (int a = 0; a < NB_ACTIONS; a++) {
-                if (id != IDENTIFIANTS[a]) continue;
-
-                std::vector<int> codes;
-                std::istringstream noms(valeur);
-                std::string nom;
-                while (std::getline(noms, nom, ',')) {
-                    if (auto code = codeTouche(Nettoyer(nom))) codes.push_back(*code);
-                }
-                // Valeur vide = aucune touche voulue ; noms tous invalides = on garde le défaut
-                if (!valeur.empty() && codes.empty()) break;
-
-                const Action action = static_cast<Action>(a);
-                Reglages::TableTouches& table = estManette ? r.manette : r.touches;
-                table[static_cast<size_t>(a)].fill(AUCUNE_TOUCHE);
-                // En ordre inverse : la première listée devient la principale
-                for (int i = std::min<int>(static_cast<int>(codes.size()), TOUCHES_PAR_ACTION) - 1; i >= 0; i--)
-                    Assigner(table, action, codes[static_cast<size_t>(i)]);
-                break;
-            }
+        else if (cle.starts_with("touche.") || cle.starts_with("manette.")) {
+            const bool estManette = cle.starts_with("manette.");
+            const auto action = std::ranges::find(IDENTIFIANTS, cle.substr(cle.find('.') + 1));
+            if (action == IDENTIFIANTS.end()) continue;
+            LireTouches(estManette ? r.manette : r.touches, static_cast<Action>(action - IDENTIFIANTS.begin()), valeur,
+                        codeTouche);
         }
     }
     return r;
@@ -227,7 +227,7 @@ std::string Serialiser(const Reglages& r, const CodeVersNom& nomTouche) {
            << "niveau_depart = " << r.niveauDepart << '\n'
            << "\n# Touches et boutons : jusqu'à " << TOUCHES_PAR_ACTION << " par action, séparés par des virgules\n";
 
-    auto ecrireTable = [&](const char* prefixe, const Reglages::TableTouches& table) {
+    auto ecrireTable = [&](std::string_view prefixe, const Reglages::TableTouches& table) {
         for (int a = 0; a < NB_ACTIONS; a++) {
             sortie << prefixe << IDENTIFIANTS[static_cast<size_t>(a)] << " =";
             bool premiere = true;

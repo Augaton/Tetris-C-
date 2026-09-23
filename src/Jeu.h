@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <optional>
 #include <random>
+#include <span>
 #include <vector>
 
 // Ce qui vient de se passer, pour les effets visuels. Taille fixe : pas d'allocation en jeu.
@@ -80,7 +81,7 @@ public:
     void Rejouer(const Commande& commande);
 
     // Événements depuis le dernier ViderEvenements() (les plus anciens sont oubliés au-delà de 32)
-    const std::vector<EvenementJeu>& Evenements() const { return evenements; }
+    std::span<const EvenementJeu> Evenements() const { return evenements; }
     void ViderEvenements() { evenements.clear(); }
 
     const Grille& Plateau() const { return grille; }

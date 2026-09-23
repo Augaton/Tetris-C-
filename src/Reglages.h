@@ -2,11 +2,13 @@
 
 #include "Mode.h"
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 
 enum class Action {
     Gauche,
@@ -27,7 +29,7 @@ inline constexpr int AUCUNE_TOUCHE = -1;
 
 struct Bornes {
     int min, max, pas;
-    int Limiter(int valeur) const { return valeur < min ? min : (valeur > max ? max : valeur); }
+    constexpr int Limiter(int valeur) const { return std::clamp(valeur, min, max); }
 };
 
 // Réglages du joueur. Touches et boutons sont des codes entiers (clavier et manette côté application,
@@ -89,11 +91,11 @@ struct Reglages {
 
 namespace reglages {
 
-using NomVersCode = std::function<std::optional<int>(const std::string&)>;
+using NomVersCode = std::function<std::optional<int>(std::string_view)>;
 using CodeVersNom = std::function<std::string(int)>;
 
 // Identifiant utilisé dans le fichier ("gauche", "chute_rapide"...)
-const char* Identifiant(Action action);
+std::string_view Identifiant(Action action);
 
 std::filesystem::path CheminFichier();
 

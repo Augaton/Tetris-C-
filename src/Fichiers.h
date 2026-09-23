@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace fichiers {
 
@@ -17,6 +18,6 @@ std::optional<std::string> LireTout(const std::filesystem::path& chemin, std::si
 
 // Écrit dans un fichier temporaire, le synchronise sur le disque puis le renomme :
 // ni fichier à moitié écrit, ni fichier vide après une coupure de courant
-bool EcrireAtomique(const std::filesystem::path& chemin, const std::string& contenu);
+bool EcrireAtomique(const std::filesystem::path& chemin, std::string_view contenu);
 
 } // namespace fichiers

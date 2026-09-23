@@ -9,14 +9,15 @@
 #include "Rendu.h"
 #include "Repetition.h"
 #include "Texte.h"
+#include "Touches.h"
 
 #include <SFML/Graphics.hpp>
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <functional>
 #include <iostream>
 #include <optional>
@@ -31,10 +32,12 @@
 
 namespace {
 
+using Touche = sf::Keyboard::Key;
+
 // Vrai si la touche du clavier ou l'entrée de manette est enfoncée en ce moment
 bool EstEnfonce(int code) {
     if (manette::EstManette(code)) return manette::EstEnfonce(code);
-    return code >= 0 && code < sf::Keyboard::KeyCount && sf::Keyboard::isKeyPressed(static_cast<sf::Keyboard::Key>(code));
+    return code >= 0 && code < static_cast<int>(sf::Keyboard::KeyCount) && sf::Keyboard::isKeyPressed(static_cast<Touche>(code));
 }
 
 // Actions tenues, avec répétition gérée par le jeu (la répétition du système est désactivée)
@@ -94,8 +97,7 @@ void RevoirPartie(Application& app, Menu& menu, Rendu& rendu, const Enregistreme
     float vitesse = 1.f;
     bool enPause = false;
 
-    sf::Text bandeau;
-    bandeau.setFont(app.police);
+    sf::Text bandeau(app.police);
     bandeau.setStyle(sf::Text::Bold);
     sf::Clock horloge;
 
@@ -103,24 +105,24 @@ void RevoirPartie(Application& app, Menu& menu, Rendu& rendu, const Enregistreme
         const float dt = std::min(horloge.restart().asSeconds(), 0.25f);
         const bool fini = suivante >= journal.commandes.size();
 
-        sf::Event evenement;
-        while (menu.Lire(evenement)) {
-            if (app.GererEvenement(evenement)) continue;
-            if (evenement.type == sf::Event::MouseButtonPressed && fini) return;
-            if (evenement.type != sf::Event::KeyPressed) continue;
-            switch (evenement.key.code) {
-                case sf::Keyboard::Escape:
-                case sf::Keyboard::Backspace: return;
-                case sf::Keyboard::Enter:
+        while (const std::optional evenement = menu.Lire()) {
+            if (app.GererEvenement(*evenement)) continue;
+            if (evenement->is<sf::Event::MouseButtonPressed>() && fini) return;
+            const auto* touche = evenement->getIf<sf::Event::KeyPressed>();
+            if (!touche) continue;
+            switch (touche->code) {
+                case Touche::Escape:
+                case Touche::Backspace: return;
+                case Touche::Enter:
                     if (fini) return;
                     enPause = !enPause;
                     break;
-                case sf::Keyboard::Space:
-                case sf::Keyboard::P: enPause = !enPause; break;
-                case sf::Keyboard::Left:
-                case sf::Keyboard::Down: vitesse = std::max(0.25f, vitesse / 2.f); break;
-                case sf::Keyboard::Right:
-                case sf::Keyboard::Up: vitesse = std::min(8.f, vitesse * 2.f); break;
+                case Touche::Space:
+                case Touche::P: enPause = !enPause; break;
+                case Touche::Left:
+                case Touche::Down: vitesse = std::max(0.25f, vitesse / 2.f); break;
+                case Touche::Right:
+                case Touche::Up: vitesse = std::min(8.f, vitesse * 2.f); break;
                 default: break;
             }
         }
@@ -147,18 +149,16 @@ void RevoirPartie(Application& app, Menu& menu, Rendu& rendu, const Enregistreme
         app.fenetre.clear(COULEUR_FOND);
         rendu.Dessiner(app.fenetre, jeu, tempsJeu, app.Echelle(), app.reglages, effets);
 
-        char vitesseTexte[16];
-        std::snprintf(vitesseTexte, sizeof vitesseTexte, "×%g", static_cast<double>(vitesse));
         const sf::String etat = suivante >= journal.commandes.size()
                                     ? TrU("FIN DU REPLAY · Entrée ou Échap pour revenir", "END OF REPLAY · Enter or Esc to go back")
-                                    : TrU("REPLAY ", "REPLAY ") + Utf8(vitesseTexte) +
+                                    : TrU("REPLAY ", "REPLAY ") + Utf8(std::format("×{:g}", vitesse)) +
                                           (enPause ? TrU(" · EN PAUSE", " · PAUSED") : sf::String()) +
                                           TrU(" · Espace pause · ←→ vitesse · Échap quitter",
                                               " · Space pause · ←→ speed · Esc exit");
         bandeau.setString(etat);
         bandeau.setFillColor(sf::Color(255, 204, 0));
         PlacerTexteBorne(bandeau, 15, {static_cast<float>(cst::FENETRE_LARGEUR) / 2.f, 527.f}, app.Echelle(),
-                         app.ZoneVisible().width - 20.f);
+                         app.ZoneVisible().size.x - 20.f);
         app.fenetre.draw(bandeau);
         app.Afficher();
     }
@@ -227,29 +227,28 @@ Menu::Choix JouerPartie(Application& app, Menu& menu, Rendu& rendu, Classements&
             }
         };
 
-        sf::Event evenement;
-        while (app.fenetre.pollEvent(evenement)) {
-            if (app.GererEvenement(evenement)) continue;
+        while (const std::optional evenement = app.fenetre.pollEvent()) {
+            if (app.GererEvenement(*evenement)) continue;
 
-            if (evenement.type == sf::Event::LostFocus) {
+            if (evenement->is<sf::Event::FocusLost>()) {
                 // Ignoré si le focus est déjà revenu (ex. fenêtre recréée par F11)
                 if (!app.fenetre.hasFocus()) pause = true;
                 continue;
             }
 
-            if (evenement.type == sf::Event::KeyPressed || evenement.type == sf::Event::KeyReleased) {
-                std::optional<Action> action = app.reglages.ActionDe(evenement.key.code);
+            const auto* appui = evenement->getIf<sf::Event::KeyPressed>();
+            const auto* relache = evenement->getIf<sf::Event::KeyReleased>();
+            if (appui || relache) {
+                const Touche touche = appui ? appui->code : relache->code;
+                std::optional<Action> action = app.reglages.ActionDe(touches::CodeTouche(touche));
                 // Échap met toujours en pause, sauf si le joueur l'a attribuée à autre chose
-                if (!action && evenement.key.code == sf::Keyboard::Escape) action = Action::Pause;
-                if (action) appliquer(*action, evenement.type == sf::Event::KeyPressed);
+                if (!action && touche == Touche::Escape) action = Action::Pause;
+                if (action) appliquer(*action, appui != nullptr);
                 continue;
             }
 
-            std::array<manette::Entree, 2> entrees;
-            const int n = traducteur.Traduire(evenement, entrees);
-            for (int i = 0; i < n; i++)
-                if (auto action = app.reglages.ActionDe(entrees[static_cast<size_t>(i)].code))
-                    appliquer(*action, entrees[static_cast<size_t>(i)].appui);
+            for (const manette::Entree& entree : traducteur.Traduire(*evenement))
+                if (auto action = app.reglages.ActionDe(entree.code)) appliquer(*action, entree.appui);
         }
         if (!app.fenetre.isOpen()) break;
 

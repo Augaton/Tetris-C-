@@ -1,23 +1,26 @@
 #include "Effets.h"
 
 #include "Constantes.h"
+#include "Formes.h"
 #include "Palette.h"
 #include "Texte.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <format>
 #include <string>
 
 namespace {
 
-const float T = static_cast<float>(cst::TUILE);
+constexpr float T = static_cast<float>(cst::TUILE);
 
 sf::Vector2f CoinCase(int x, int y) {
     return {cst::PLATEAU.x + T * static_cast<float>(x), cst::PLATEAU.y + T * static_cast<float>(y)};
 }
 
 sf::Color AvecAlpha(sf::Color couleur, float alpha) {
-    couleur.a = static_cast<sf::Uint8>(std::clamp(alpha, 0.f, 1.f) * 255.f);
+    couleur.a = static_cast<std::uint8_t>(std::clamp(alpha, 0.f, 1.f) * 255.f);
     return couleur;
 }
 
@@ -36,14 +39,13 @@ void RetirerFinis(V& elements) {
 
 } // namespace
 
-Effets::Effets(const sf::Font& police) {
+Effets::Effets(const sf::Font& police) : textes(Tableau<TexteFlottant, 4>(police)) {
     particules.reserve(MAX_PARTICULES);
     eclats.reserve(MAX_ECLATS);
     trainees.reserve(MAX_TRAINEES);
-    sommets.resize(4 * (MAX_PARTICULES + MAX_ECLATS + MAX_TRAINEES));
+    sommets.resize(6 * (MAX_PARTICULES + MAX_ECLATS + MAX_TRAINEES));
     sommets.clear(); // garde la capacité : aucune réallocation en jeu
     for (TexteFlottant& t : textes) {
-        t.texte.setFont(police);
         t.texte.setStyle(sf::Text::Bold);
         t.texte.setOutlineColor(sf::Color::Black);
     }
@@ -86,7 +88,7 @@ void Effets::Secouer(float amplitude) {
     secousse = std::max(secousse, amplitude);
 }
 
-void Effets::Traiter(const std::vector<EvenementJeu>& evenements, const Reglages& reglages) {
+void Effets::Traiter(std::span<const EvenementJeu> evenements, const Reglages& reglages) {
     const bool effetsActifs = reglages.effets;
     const bool secoussesActives = reglages.secousses;
     const auto CouleurTuile = [&](int tuile) { return palette::Tuile(tuile, reglages.daltonien); };
@@ -154,11 +156,11 @@ void Effets::Traiter(const std::vector<EvenementJeu>& evenements, const Reglages
                 }
                 yMoyen /= static_cast<float>(std::max(1, e.nbLignes));
 
-                const char* NOMS[] = {"", "", "DOUBLE", "TRIPLE", Tr("TETRIS !", "TETRIS!")};
+                const std::array<const char*, 5> NOMS = {"", "", "DOUBLE", "TRIPLE", Tr("TETRIS !", "TETRIS!")};
                 const std::string points = "+" + FormaterNombre(e.points);
                 const sf::Vector2f centre(cst::PLATEAU.x + T * cst::LARGEUR / 2.f, yMoyen);
                 if (e.nbLignes >= 2)
-                    AfficherTexte(Utf8(std::string(NOMS[std::min(e.nbLignes, 4)]) + "  " + points), centre,
+                    AfficherTexte(Utf8(std::format("{}  {}", NOMS[static_cast<size_t>(std::min(e.nbLignes, 4))], points)), centre,
                                   e.nbLignes >= 4 ? 28 : 22, e.nbLignes >= 4 ? sf::Color::Cyan : sf::Color::White, 1.f);
                 else
                     AfficherTexte(Utf8(points), centre, 18, sf::Color::White, 0.8f);
@@ -177,7 +179,7 @@ void Effets::Traiter(const std::vector<EvenementJeu>& evenements, const Reglages
 
             case EvenementJeu::Type::Niveau:
                 if (!effetsActifs) break;
-                AfficherTexte(Utf8(Tr("NIVEAU ", "LEVEL ") + std::to_string(e.niveau)),
+                AfficherTexte(Utf8(std::format("{}{}", Tr("NIVEAU ", "LEVEL "), e.niveau)),
                               {cst::PLATEAU.x + T * cst::LARGEUR / 2.f, cst::PLATEAU.y + 110.f}, 30,
                               sf::Color(255, 204, 0), 1.3f);
                 break;
@@ -217,10 +219,9 @@ sf::Vector2f Effets::Secousse() const {
 }
 
 void Effets::AjouterQuad(sf::FloatRect zone, sf::Color haut, sf::Color bas) {
-    sommets.append(sf::Vertex({zone.left, zone.top}, haut));
-    sommets.append(sf::Vertex({zone.left + zone.width, zone.top}, haut));
-    sommets.append(sf::Vertex({zone.left + zone.width, zone.top + zone.height}, bas));
-    sommets.append(sf::Vertex({zone.left, zone.top + zone.height}, bas));
+    const sf::Vector2f coin = zone.position, taille = zone.size;
+    formes::AjouterQuad(sommets, {coin, haut}, {{coin.x + taille.x, coin.y}, haut}, {coin + taille, bas},
+                        {{coin.x, coin.y + taille.y}, bas});
 }
 
 void Effets::DessinerPlateau(sf::RenderTarget& cible, const sf::RenderStates& etats) {
@@ -228,16 +229,16 @@ void Effets::DessinerPlateau(sf::RenderTarget& cible, const sf::RenderStates& et
 
     for (const Trainee& t : trainees) {
         const float restant = 1.f - t.vie / t.duree;
-        AjouterQuad({t.x, t.haut, T, t.bas - t.haut}, AvecAlpha(t.couleur, 0.f), AvecAlpha(t.couleur, 0.45f * restant));
+        AjouterQuad({{t.x, t.haut}, {T, t.bas - t.haut}}, AvecAlpha(t.couleur, 0.f), AvecAlpha(t.couleur, 0.45f * restant));
     }
 
     for (const Eclat& e : eclats) {
         const float progression = e.vie / e.duree;
         sf::FloatRect zone = e.zone;
         if (e.seTasse) {
-            const float hauteur = zone.height * (1.f - progression * progression);
-            zone.top += (zone.height - hauteur) / 2.f;
-            zone.height = hauteur;
+            const float hauteur = zone.size.y * (1.f - progression * progression);
+            zone.position.y += (zone.size.y - hauteur) / 2.f;
+            zone.size.y = hauteur;
         }
         const sf::Color blanc = AvecAlpha(sf::Color::White, (e.seTasse ? 0.9f : 0.55f) * (1.f - progression));
         AjouterQuad(zone, blanc, blanc);
@@ -247,7 +248,7 @@ void Effets::DessinerPlateau(sf::RenderTarget& cible, const sf::RenderStates& et
         const float restant = 1.f - p.vie / p.duree;
         const float taille = p.taille * (0.4f + 0.6f * restant);
         const sf::Color couleur = AvecAlpha(p.couleur, std::min(1.f, restant * 2.f));
-        AjouterQuad({p.position.x - taille / 2.f, p.position.y - taille / 2.f, taille, taille}, couleur, couleur);
+        AjouterQuad({{p.position.x - taille / 2.f, p.position.y - taille / 2.f}, {taille, taille}}, couleur, couleur);
     }
 
     if (sommets.getVertexCount() > 0) cible.draw(sommets, etats);
@@ -264,7 +265,7 @@ void Effets::DessinerTextes(sf::RenderTarget& cible, float echelle) {
         const float alpha = progression < 0.6f ? 1.f : 1.f - (progression - 0.6f) / 0.4f;
 
         sf::Color couleur = t.texte.getFillColor();
-        couleur.a = static_cast<sf::Uint8>(255.f * alpha);
+        couleur.a = static_cast<std::uint8_t>(255.f * alpha);
         t.texte.setFillColor(couleur);
         t.texte.setOutlineColor(sf::Color(0, 0, 0, couleur.a));
         t.texte.setOutlineThickness(2.f * echelle);

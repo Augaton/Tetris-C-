@@ -1,44 +1,51 @@
 #include "Formes.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <numbers>
 
 namespace formes {
 
 void AjouterRectangleArrondi(sf::VertexArray& sommets, sf::FloatRect zone, float rayon, sf::Color couleur,
                              const sf::Transform& transformation) {
-    if (zone.width <= 0.f || zone.height <= 0.f || couleur.a == 0) return;
-    rayon = std::max(0.f, std::min({rayon, zone.width / 2.f, zone.height / 2.f}));
+    if (zone.size.x <= 0.f || zone.size.y <= 0.f || couleur.a == 0) return;
+    rayon = std::max(0.f, std::min({rayon, zone.size.x / 2.f, zone.size.y / 2.f}));
 
     // 4 arcs de SEGMENTS segments autour du centre
-    const int SEGMENTS = 5;
-    const float droite = zone.left + zone.width, bas = zone.top + zone.height;
-    const sf::Vector2f centresArcs[4] = {
-        {droite - rayon, zone.top + rayon}, {droite - rayon, bas - rayon},
-        {zone.left + rayon, bas - rayon},   {zone.left + rayon, zone.top + rayon},
-    };
-    const sf::Vector2f centre = transformation.transformPoint(zone.left + zone.width / 2.f, zone.top + zone.height / 2.f);
+    constexpr int SEGMENTS = 5;
+    const sf::Vector2f hautGauche = zone.position, basDroite = zone.position + zone.size;
+    const std::array<sf::Vector2f, 4> centresArcs = {{
+        {basDroite.x - rayon, hautGauche.y + rayon}, {basDroite.x - rayon, basDroite.y - rayon},
+        {hautGauche.x + rayon, basDroite.y - rayon}, {hautGauche.x + rayon, hautGauche.y + rayon},
+    }};
+    const sf::Vector2f centre = transformation.transformPoint(zone.getCenter());
 
     sf::Vector2f premier, precedent;
     for (int arc = 0; arc < 4; arc++) {
         for (int i = 0; i <= SEGMENTS; i++) {
-            const float angle =
-                (-90.f + 90.f * (static_cast<float>(arc) + static_cast<float>(i) / SEGMENTS)) * 3.14159265f / 180.f;
-            const sf::Vector2f point =
-                transformation.transformPoint(centresArcs[arc] + sf::Vector2f(std::cos(angle), std::sin(angle)) * rayon);
+            const float angle = (-90.f + 90.f * (static_cast<float>(arc) + static_cast<float>(i) / SEGMENTS)) *
+                                std::numbers::pi_v<float> / 180.f;
+            const sf::Vector2f point = transformation.transformPoint(
+                centresArcs[static_cast<size_t>(arc)] + sf::Vector2f(std::cos(angle), std::sin(angle)) * rayon);
             if (arc == 0 && i == 0) {
                 premier = point;
             } else {
-                sommets.append(sf::Vertex(centre, couleur));
-                sommets.append(sf::Vertex(precedent, couleur));
-                sommets.append(sf::Vertex(point, couleur));
+                sommets.append({centre, couleur});
+                sommets.append({precedent, couleur});
+                sommets.append({point, couleur});
             }
             precedent = point;
         }
     }
-    sommets.append(sf::Vertex(centre, couleur));
-    sommets.append(sf::Vertex(precedent, couleur));
-    sommets.append(sf::Vertex(premier, couleur));
+    sommets.append({centre, couleur});
+    sommets.append({precedent, couleur});
+    sommets.append({premier, couleur});
+}
+
+void AjouterQuad(sf::VertexArray& sommets, const sf::Vertex& a, const sf::Vertex& b, const sf::Vertex& c,
+                 const sf::Vertex& d) {
+    for (const sf::Vertex& sommet : {a, b, c, a, c, d}) sommets.append(sommet);
 }
 
 } // namespace formes

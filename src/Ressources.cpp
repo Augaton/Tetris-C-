@@ -45,7 +45,7 @@ fs::path DossierExecutable() {
 #endif
 }
 
-std::optional<fs::path> Trouver(const std::string& nom) {
+std::optional<fs::path> Trouver(std::string_view nom) {
     std::vector<fs::path> dossiers;
 
     // Jamais le dossier courant : lancé depuis un dossier piégé, le jeu y chargerait

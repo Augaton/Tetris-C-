@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
+#include <format>
 
 namespace {
 
@@ -10,7 +10,7 @@ Langue langueCourante = Langue::Francais;
 
 } // namespace
 
-sf::String Utf8(const std::string& texte) {
+sf::String Utf8(std::string_view texte) {
     return sf::String::fromUtf8(texte.begin(), texte.end());
 }
 
@@ -28,13 +28,11 @@ const char* Tr(const char* francais, const char* anglais) {
 
 sf::String Majuscules(const sf::String& texte) {
     sf::String resultat = texte;
-    for (std::size_t i = 0; i < resultat.getSize(); i++) {
-        sf::Uint32 c = resultat[i];
-        if (c >= 'a' && c <= 'z') c -= 0x20;
-        else if (c >= 0xE0 && c <= 0xFE && c != 0xF7) c -= 0x20; // à…þ sauf ÷
-        else if (c == 0xFF) c = 0x178;                           // ÿ
-        else if (c == 0x153) c = 0x152;                          // œ
-        resultat[i] = c;
+    for (char32_t& c : resultat) {
+        if (c >= U'a' && c <= U'z') c -= 0x20;
+        else if (c >= U'à' && c <= U'þ' && c != U'÷') c -= 0x20; // à…þ sauf ÷
+        else if (c == U'ÿ') c = U'Ÿ';
+        else if (c == U'œ') c = U'Œ';
     }
     return resultat;
 }
@@ -42,9 +40,7 @@ sf::String Majuscules(const sf::String& texte) {
 std::string FormaterTemps(float secondes) {
     // Borné à 99:59.99 : pas de dépassement, même après une session Zen interminable
     const long centiemes = std::lround(std::clamp(secondes, 0.f, 5999.99f) * 100.f);
-    char tampon[32];
-    std::snprintf(tampon, sizeof tampon, "%ld:%02ld.%02ld", centiemes / 6000, (centiemes / 100) % 60, centiemes % 100);
-    return tampon;
+    return std::format("{}:{:02}.{:02}", centiemes / 6000, (centiemes / 100) % 60, centiemes % 100);
 }
 
 std::string FormaterNombre(long long nombre) {
@@ -53,7 +49,7 @@ std::string FormaterNombre(long long nombre) {
                                                  : static_cast<unsigned long long>(nombre);
     std::string chiffres = std::to_string(absolu);
     // Espace insécable en français (présente dans toutes les polices), virgule en anglais
-    const std::string separateur = langueCourante == Langue::Anglais ? "," : "\xC2\xA0";
+    const std::string_view separateur = langueCourante == Langue::Anglais ? "," : "\xC2\xA0";
     for (int i = static_cast<int>(chiffres.size()) - 3; i > 0; i -= 3) chiffres.insert(static_cast<size_t>(i), separateur);
     return nombre < 0 ? "-" + chiffres : chiffres;
 }
@@ -64,15 +60,14 @@ void PlacerTexte(sf::Text& texte, unsigned tailleLogique, sf::Vector2f centre, f
     texte.setCharacterSize(tailleReelle);
 
     const float facteur = zoom * static_cast<float>(tailleLogique) / static_cast<float>(tailleReelle);
-    texte.setScale(facteur, facteur);
+    texte.setScale({facteur, facteur});
 
-    const sf::FloatRect b = texte.getLocalBounds();
-    texte.setOrigin(b.left + b.width / 2.f, b.top + b.height / 2.f);
+    texte.setOrigin(texte.getLocalBounds().getCenter());
     texte.setPosition(centre);
 }
 
 void PlacerTexteBorne(sf::Text& texte, unsigned tailleLogique, sf::Vector2f centre, float echelle, float largeurMax) {
     PlacerTexte(texte, tailleLogique, centre, echelle);
-    const float largeur = texte.getGlobalBounds().width;
+    const float largeur = texte.getGlobalBounds().size.x;
     if (largeur > largeurMax) PlacerTexte(texte, tailleLogique, centre, echelle, largeurMax / largeur);
 }
