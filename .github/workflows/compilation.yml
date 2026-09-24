@@ -5,6 +5,7 @@ name: Compilation
 on:
   push:
   pull_request:
+  workflow_dispatch: # relance à la main depuis l'onglet Actions
 
 jobs:
   compilation:
@@ -26,12 +27,20 @@ jobs:
           sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxi-dev libudev-dev \
             libgl1-mesa-dev libfreetype-dev libharfbuzz-dev
 
-      # SFML et ses dépendances, téléchargées et compilées par CMake, gardées d'une exécution à l'autre
-      - name: Cache des dépendances
+      # Un compilateur mis à jour avec l'image du runner invalide le cache
+      - name: Image du runner
+        id: image
+        shell: bash
+        run: echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      # Dossier de build gardé d'une exécution à l'autre : SFML et ses dépendances ne sont ni
+      # retéléchargées ni recompilées, seul le code du jeu l'est
+      - name: Cache du build
         uses: actions/cache@v6
         with:
-          path: build/_deps
-          key: deps-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}
+          path: build
+          key: build-${{ runner.os }}-${{ steps.image.outputs.version }}-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: build-${{ runner.os }}-${{ steps.image.outputs.version }}-
 
       - name: Configuration
         shell: bash
