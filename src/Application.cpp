@@ -18,7 +18,7 @@ constexpr float HAUTEUR_LOGIQUE = static_cast<float>(cst::FENETRE_HAUTEUR);
 } // namespace
 
 bool Application::Initialiser() {
-    if (!ressources::Charger(police, "arial.ttf") || !ressources::Charger(tuiles, "tiles.png") ||
+    if (!ressources::Charger(police, "LiberationSans-Regular.ttf") || !ressources::Charger(tuiles, "tiles.png") ||
         !ressources::Charger(fondJeu, "FondPrincipal.png") || !ressources::Charger(logo, "TetrisLogo.png") ||
         !ressources::Charger(fondMenu, "Fond.png"))
         return false;
