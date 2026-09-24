@@ -75,8 +75,9 @@ public:
         int activee = -1; // entrée validée
         int delta = 0;    // modification demandée sur l'entrée sélectionnée
     };
-    Liste(Application& app, float haut, float espacement, unsigned taille, float largeur = 560.f, StyleListe style = {})
-        : app(app), haut(haut), espacement(espacement), taille(taille), largeur(largeur), style(style) {
+    Liste(Application& application, float hautListe, float ecart, unsigned tailleTexte, float largeurMax = 560.f,
+          StyleListe apparence = {})
+        : app(application), haut(hautListe), espacement(ecart), taille(tailleTexte), largeur(largeurMax), style(apparence) {
         formes.resize(6 * 24 * 4);
         formes.clear();
     }
@@ -309,7 +310,7 @@ std::string Decimal(float valeur) {
 
 } // namespace
 
-Menu::Menu(Application& app) : app(app) {
+Menu::Menu(Application& application) : app(application) {
     texte.setStyle(sf::Text::Bold);
 
     // Sans shader (GPU non compatible) on affiche le fond sans flou au lieu de planter
@@ -1022,10 +1023,10 @@ Menu::Choix Menu::FinDePartie(const sf::Texture& scene, const ResumePartie& resu
     const Mode m = resume.parametres.mode;
 
     // Entrées du menu : « Revoir la partie » seulement si le journal est disponible
-    enum class Entree { Recommencer, Revoir, Menu, Quitter };
+    enum class Entree { Recommencer, Revoir, MenuPrincipal, Quitter };
     std::vector<Entree> entrees = {Entree::Recommencer};
     if (revoir) entrees.push_back(Entree::Revoir);
-    entrees.insert(entrees.end(), {Entree::Menu, Entree::Quitter});
+    entrees.insert(entrees.end(), {Entree::MenuPrincipal, Entree::Quitter});
     Liste liste(app, 366.f, 40.f, 20, 380.f, {true});
 
     bool aJour = false;
@@ -1033,10 +1034,10 @@ Menu::Choix Menu::FinDePartie(const sf::Texture& scene, const ResumePartie& resu
         std::vector<sf::String> libelles;
         for (Entree e : entrees) {
             switch (e) {
-                case Entree::Recommencer: libelles.push_back(TrU("Recommencer", "Play again")); break;
-                case Entree::Revoir:      libelles.push_back(TrU("Revoir la partie", "Watch replay")); break;
-                case Entree::Menu:        libelles.push_back(TrU("Menu principal", "Main menu")); break;
-                case Entree::Quitter:     libelles.push_back(TrU("Quitter", "Quit")); break;
+                case Entree::Recommencer:   libelles.push_back(TrU("Recommencer", "Play again")); break;
+                case Entree::Revoir:        libelles.push_back(TrU("Revoir la partie", "Watch replay")); break;
+                case Entree::MenuPrincipal: libelles.push_back(TrU("Menu principal", "Main menu")); break;
+                case Entree::Quitter:       libelles.push_back(TrU("Quitter", "Quit")); break;
             }
         }
         liste.Definir(std::move(libelles));
@@ -1054,7 +1055,7 @@ Menu::Choix Menu::FinDePartie(const sf::Texture& scene, const ResumePartie& resu
                     revoir();
                     aJour = false;
                     break;
-                case Entree::Menu: return Choix::MenuPrincipal;
+                case Entree::MenuPrincipal: return Choix::MenuPrincipal;
                 case Entree::Quitter: return Choix::Quitter;
             }
         }

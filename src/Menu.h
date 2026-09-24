@@ -30,7 +30,7 @@ class Menu {
 public:
     enum class Choix { Jouer, MenuPrincipal, Quitter };
 
-    explicit Menu(Application& app);
+    explicit Menu(Application& application);
 
     // Jouer (avec les paramètres choisis dans `parametres`) ou Quitter ; donne accès au reste
     Choix Principal(const Classements& classements, ParametresPartie& parametres);

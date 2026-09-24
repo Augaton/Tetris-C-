@@ -59,9 +59,9 @@ const std::vector<Quad>& Motif(int tuile) {
 
 } // namespace
 
-Rendu::Rendu(const sf::Texture& tuiles, const sf::Texture& tuilesDaltonien, const sf::Texture& fondTexture,
-             const sf::Font& police)
-    : tuiles(tuiles), tuilesDaltonien(tuilesDaltonien), police(police), fond(fondTexture) {
+Rendu::Rendu(const sf::Texture& textureTuiles, const sf::Texture& textureDaltonien, const sf::Texture& textureFond,
+             const sf::Font& policeTexte)
+    : tuiles(textureTuiles), tuilesDaltonien(textureDaltonien), police(policeTexte), fond(textureFond) {
     // Capacité réservée une fois : plus de réallocation pendant la partie (6 sommets par tuile)
     sommets.resize(6 * (cst::LARGEUR * cst::HAUTEUR + 16));
     sommets.clear();
@@ -274,9 +274,9 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
     const sf::Texture* texture = reglages.daltonien ? &tuilesDaltonien : &tuiles;
 
     const Jeu::Grille& grille = jeu.Plateau();
-    for (int y = 0; y < cst::HAUTEUR; y++)
-        for (int x = 0; x < cst::LARGEUR; x++)
-            if (grille[y][x] != 0) AjouterTuile(grille[y][x], PositionCase(x, y));
+    for (size_t y = 0; y < grille.size(); y++)
+        for (size_t x = 0; x < grille[y].size(); x++)
+            if (grille[y][x] != 0) AjouterTuile(grille[y][x], PositionCase(static_cast<int>(x), static_cast<int>(y)));
 
     if (!jeu.Fini()) {
         // Mouvements fluides : la pièce affichée rattrape sa case en ~0,1 s. Nouvelle pièce ou grand saut
@@ -321,12 +321,12 @@ void Rendu::Dessiner(sf::RenderTarget& cible, const Jeu& jeu, float temps, float
     if (motifs.getVertexCount() > 0) cible.draw(motifs);
 
     // Le score affiché rattrape le vrai score en quelques images
-    if (!reglages.effets || static_cast<double>(jeu.Score()) < scoreAffiche)
-        scoreAffiche = static_cast<double>(jeu.Score());
+    const auto scoreReel = static_cast<double>(jeu.Score());
+    if (!reglages.effets || scoreReel < scoreAffiche)
+        scoreAffiche = scoreReel;
     else
-        scoreAffiche += (static_cast<double>(jeu.Score()) - scoreAffiche) * std::min(1.f, dt * 12.f);
-    const long long scoreArrondi =
-        jeu.Score() - scoreAffiche < 1.0 ? jeu.Score() : static_cast<long long>(scoreAffiche);
+        scoreAffiche += (scoreReel - scoreAffiche) * static_cast<double>(std::min(1.f, dt * 12.f));
+    const long long scoreArrondi = scoreReel - scoreAffiche < 1.0 ? jeu.Score() : static_cast<long long>(scoreAffiche);
 
     DessinerInfos(cible, jeu, scoreArrondi, echelle);
     DessinerCommandes(cible, reglages, echelle);

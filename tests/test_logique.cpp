@@ -94,7 +94,7 @@ void TestWallKick() {
 
 void TestLigneEtScore() {
     Jeu::Grille grille{};
-    for (int x = 0; x < cst::LARGEUR; x++)
+    for (size_t x = 0; x < cst::LARGEUR; x++)
         if (x < 3 || x > 6) grille[cst::HAUTEUR - 1][x] = 1;
 
     Jeu jeu = AvecPremiere(TypePiece::I, grille);
@@ -122,8 +122,8 @@ void TestLigneEtScore() {
 
 void TestDefaite() {
     Jeu::Grille grille{};
-    for (int y = cst::LIGNES_ZONE_LIMITE; y < cst::HAUTEUR; y++)
-        for (int x = 0; x < cst::LARGEUR - 1; x++) grille[y][x] = 1; // pas de ligne complète
+    for (size_t y = cst::LIGNES_ZONE_LIMITE; y < cst::HAUTEUR; y++)
+        for (size_t x = 0; x < cst::LARGEUR - 1; x++) grille[y][x] = 1; // pas de ligne complète
 
     Jeu jeu(1, grille);
     jeu.ChuteRapide();
@@ -334,7 +334,7 @@ void TestAnalyseRobuste() {
 void TestModes() {
     // Sprint : terminé dès l'objectif atteint (ici 1 ligne), plus aucune action ensuite
     Jeu::Grille grille{};
-    for (int x = 0; x < cst::LARGEUR; x++)
+    for (size_t x = 0; x < cst::LARGEUR; x++)
         if (x < 3 || x > 6) grille[cst::HAUTEUR - 1][x] = 1;
     ParametresPartie sprint{Mode::Sprint, 0, 1};
     unsigned graine = 0;
@@ -363,8 +363,8 @@ void TestModes() {
     zen.MettreAJour(30.f);
     VERIFIER(MinY(zen.CasesPiece()) == y);
     Jeu::Grille haute{};
-    for (int yy = cst::LIGNES_ZONE_LIMITE; yy < cst::HAUTEUR; yy++)
-        for (int x = 0; x < cst::LARGEUR - 1; x++) haute[yy][x] = 1;
+    for (size_t yy = cst::LIGNES_ZONE_LIMITE; yy < cst::HAUTEUR; yy++)
+        for (size_t x = 0; x < cst::LARGEUR - 1; x++) haute[yy][x] = 1;
     Jeu zenPlein(1, haute, ParametresPartie{Mode::Zen});
     zenPlein.ChuteRapide();
     VERIFIER(!zenPlein.Fini() && CasesOccupees(zenPlein) == 0);

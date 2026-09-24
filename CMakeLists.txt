@@ -81,7 +81,10 @@ function(tetris_options cible)
         target_compile_options(${cible} PRIVATE /W4 /utf-8 /guard:cf)
         target_link_options(${cible} PRIVATE /guard:cf /DYNAMICBASE /NXCOMPAT)
     else()
-        target_compile_options(${cible} PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(${cible} PRIVATE -Wall -Wextra -Wpedantic
+            -Wconversion -Wsign-conversion -Wdouble-promotion -Wshadow -Wold-style-cast -Wcast-qual
+            -Wnon-virtual-dtor -Woverloaded-virtual -Wimplicit-fallthrough -Wextra-semi -Wformat=2
+            $<$<CXX_COMPILER_ID:GNU>:-Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wuseless-cast>)
         if(TETRIS_DURCISSEMENT)
             target_compile_options(${cible} PRIVATE -fstack-protector-strong)
             if(TETRIS_STACK_CLASH)

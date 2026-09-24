@@ -12,7 +12,8 @@
 // Dessine une partie. Peut viser la fenêtre ou une RenderTexture (capture pour pause / fin).
 class Rendu {
 public:
-    Rendu(const sf::Texture& tuiles, const sf::Texture& tuilesDaltonien, const sf::Texture& fond, const sf::Font& police);
+    Rendu(const sf::Texture& textureTuiles, const sf::Texture& textureDaltonien, const sf::Texture& textureFond,
+          const sf::Font& policeTexte);
 
     // Meilleur score au début de la partie : le score passe en doré quand il est battu
     void DefinirRecord(long long valeur) { record = valeur; }

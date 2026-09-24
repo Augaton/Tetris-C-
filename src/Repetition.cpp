@@ -1,7 +1,7 @@
 #include "Repetition.h"
 
-RepetitionTouche::RepetitionTouche(float delaiInitial, float intervalle, int maximum)
-    : delaiInitial(delaiInitial), intervalle(intervalle), maximum(maximum) {}
+RepetitionTouche::RepetitionTouche(float delai, float periode, int plafond)
+    : delaiInitial(delai), intervalle(periode), maximum(plafond) {}
 
 void RepetitionTouche::Appuyer() {
     enfoncee = true;

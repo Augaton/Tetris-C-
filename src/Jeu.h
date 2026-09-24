@@ -58,8 +58,9 @@ public:
     // 0 = case vide, sinon n° de tuile
     using Grille = std::array<std::array<int, cst::LARGEUR>, cst::HAUTEUR>;
 
-    explicit Jeu(unsigned graine = std::random_device{}(), const Grille& depart = {}, ParametresPartie parametres = {});
-    Jeu(unsigned graine, ParametresPartie parametres) : Jeu(graine, {}, parametres) {}
+    explicit Jeu(unsigned graineInitiale = std::random_device{}(), const Grille& depart = {},
+                 ParametresPartie parametresPartie = {});
+    Jeu(unsigned graineInitiale, ParametresPartie parametresPartie) : Jeu(graineInitiale, {}, parametresPartie) {}
 
     // Actions du joueur (renvoient true si la pièce a bougé)
     bool Deplacer(int dx);
@@ -159,6 +160,9 @@ private:
 
     void Signaler(const EvenementJeu& evenement);
     void AjouterScore(long long points);
+    // Cellule d'une case dont les coordonnées ont été vérifiées
+    int& Cellule(Case c) { return grille[static_cast<size_t>(c.y)][static_cast<size_t>(c.x)]; }
+    int Cellule(Case c) const { return grille[static_cast<size_t>(c.y)][static_cast<size_t>(c.x)]; }
     static Cases Placer(const EtatPiece& piece);
     bool Libre(const Cases& cases) const;
     bool AuSol() const;

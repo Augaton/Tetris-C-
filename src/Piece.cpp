@@ -1,5 +1,7 @@
 #include "Piece.h"
 
+#include <cstddef>
+
 namespace {
 
 struct Definition {
@@ -48,7 +50,7 @@ constexpr Tests SRS_I[4][2] = {
 };
 
 const Definition& Def(TypePiece type) {
-    return DEFINITIONS[static_cast<int>(type)];
+    return DEFINITIONS[static_cast<std::size_t>(type)];
 }
 
 int Normaliser(int rotation) {

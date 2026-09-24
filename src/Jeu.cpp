@@ -16,8 +16,8 @@ bool Occupee(const std::array<int, cst::LARGEUR>& ligne) {
 
 } // namespace
 
-Jeu::Jeu(unsigned graine, const Grille& depart, ParametresPartie parametresPartie)
-    : grille(depart), parametres(parametresPartie), graine(graine), sac(graine) {
+Jeu::Jeu(unsigned graineInitiale, const Grille& depart, ParametresPartie parametresPartie)
+    : grille(depart), parametres(parametresPartie), graine(graineInitiale), sac(graineInitiale) {
     evenements.reserve(32);
     parametres.niveauDepart = std::clamp(parametres.niveauDepart, 0, mode::NIVEAU_DEPART_MAX);
     if (parametres.mode == Mode::Marathon) niveau = parametres.niveauDepart;
@@ -86,7 +86,7 @@ Cases Jeu::Placer(const EtatPiece& piece) {
 bool Jeu::Libre(const Cases& cases) const {
     for (const Case& c : cases) {
         if (c.x < 0 || c.x >= cst::LARGEUR || c.y < 0 || c.y >= cst::HAUTEUR) return false;
-        if (grille[c.y][c.x] != 0) return false;
+        if (Cellule(c) != 0) return false;
     }
     return true;
 }
@@ -265,18 +265,18 @@ float Jeu::IntervalleGravite() const {
 
 void Jeu::Verrouiller() {
     const int couleur = piece::Couleur(active.type);
-    for (const Case& c : CasesPiece()) grille[c.y][c.x] = couleur;
+    for (const Case& c : CasesPiece()) Cellule(c) = couleur;
     stats.pieces++;
 
     Signaler({.type = EvenementJeu::Type::Verrouillage, .cases = CasesPiece(), .couleur = couleur});
 
     // Lignes pleines relevées avant l'effacement, pour les effets
     EvenementJeu lignesPleines{.type = EvenementJeu::Type::Lignes};
-    for (int y = 0; y < cst::HAUTEUR && lignesPleines.nbLignes < 4; y++) {
+    for (size_t y = 0; y < grille.size() && lignesPleines.nbLignes < 4; y++) {
         if (Pleine(grille[y])) {
-            lignesPleines.lignes[lignesPleines.nbLignes] = y;
-            lignesPleines.contenu[lignesPleines.nbLignes] = grille[y];
-            lignesPleines.nbLignes++;
+            const auto n = static_cast<size_t>(lignesPleines.nbLignes++);
+            lignesPleines.lignes[n] = static_cast<int>(y);
+            lignesPleines.contenu[n] = grille[y];
         }
     }
 
@@ -311,20 +311,14 @@ void Jeu::Verrouiller() {
 }
 
 int Jeu::EffacerLignes() {
-    int effacees = 0;
-    int ecriture = cst::HAUTEUR - 1;
-
-    for (int y = cst::HAUTEUR - 1; y >= 0; y--) {
-        if (Pleine(grille[y])) {
-            effacees++;
-            continue;
-        }
-        if (ecriture != y) grille[ecriture] = grille[y];
-        ecriture--;
+    // Les lignes restantes descendent en gardant leur ordre ; autant de lignes vides apparaissent en haut
+    size_t ecriture = grille.size();
+    for (size_t y = grille.size(); y-- > 0;) {
+        if (Pleine(grille[y])) continue;
+        if (--ecriture != y) grille[ecriture] = grille[y];
     }
-    for (; ecriture >= 0; ecriture--) grille[ecriture].fill(0);
-
-    return effacees;
+    for (size_t y = 0; y < ecriture; y++) grille[y].fill(0);
+    return static_cast<int>(ecriture); // lignes effacées
 }
 
 void Jeu::AjouterLignes(int nombre) {
