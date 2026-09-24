@@ -147,6 +147,10 @@ add_custom_command(TARGET Tetris POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/asset $<TARGET_FILE_DIR:Tetris>/asset
 )
 
+# Le jeu prêt à distribuer, exécutable et ressources : cmake --install build --component jeu --prefix <dossier>
+install(TARGETS Tetris RUNTIME DESTINATION . COMPONENT jeu)
+install(DIRECTORY asset DESTINATION . COMPONENT jeu)
+
 if(TETRIS_TESTS)
     enable_testing()
     add_executable(tests_logique tests/test_logique.cpp)

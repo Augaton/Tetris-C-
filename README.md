@@ -30,6 +30,20 @@ Un Tetris en C++20 avec [SFML 3.1](https://www.sfml-dev.org/), pour Linux, Windo
 
 Elles se changent dans le menu **Commandes**.
 
+## Télécharger
+
+Le jeu prêt à jouer, pour Linux, Windows et macOS, est publié avec chaque version dans les
+[Releases](https://github.com/Augaton/Tetris-C-/releases). Chaque compilation de l'onglet Actions le propose aussi
+dans ses artefacts (connexion à GitHub nécessaire).
+
+- **Windows** : décompresser `Tetris-Windows.zip` et lancer `Tetris.exe`.
+- **Linux** : `tar xzf Tetris-Linux.tar.gz && ./Tetris/Tetris`. Compilé sous Ubuntu 24.04 : il faut une distribution
+  de 2024 ou plus récente, avec FreeType et HarfBuzz (présents sur tout bureau).
+- **macOS** (Mac à puce Apple, macOS 13.3 ou plus récent) : `tar xzf Tetris-macOS.tar.gz`, puis
+  `xattr -dr com.apple.quarantine Tetris` car le jeu n'est pas signé, et `./Tetris/Tetris`.
+
+Pour publier une version : `git tag v1.0 && git push origin v1.0`.
+
 ## Compiler
 
 Il faut :

@@ -1,4 +1,5 @@
-# Compile le jeu et lance les tests sous Linux, Windows et macOS à chaque push
+# Compile le jeu, lance les tests et prépare une archive prête à jouer sous Linux, Windows et macOS.
+# Une étiquette v* (git tag v1.0 && git push --tags) publie en plus les archives dans les Releases.
 name: Compilation
 
 on:
@@ -25,11 +26,59 @@ jobs:
           sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxi-dev libudev-dev \
             libgl1-mesa-dev libfreetype-dev libharfbuzz-dev
 
+      # SFML et ses dépendances, téléchargées et compilées par CMake, gardées d'une exécution à l'autre
+      - name: Cache des dépendances
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: deps-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}
+
       - name: Configuration
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        shell: bash
+        run: |
+          options=()
+          # Windows : bibliothèque C++ liée en statique, le jeu ne demande aucune DLL à installer
+          if [ "$RUNNER_OS" = Windows ]; then
+            options+=(-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DSFML_USE_STATIC_STD_LIBS=ON)
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "${options[@]}"
 
       - name: Compilation
         run: cmake --build build --config Release --parallel
 
       - name: Tests
         run: ctest --test-dir build --build-config Release --output-on-failure
+
+      # Archive du jeu : zip sous Windows, tar ailleurs (garde le droit d'exécution)
+      - name: Archive
+        shell: bash
+        run: |
+          cmake --install build --config Release --component jeu --prefix Tetris --strip
+          if [ "$RUNNER_OS" = Windows ]; then
+            cmake -E tar cf Tetris-Windows.zip --format=zip Tetris
+          else
+            tar czf "Tetris-$RUNNER_OS.tar.gz" Tetris
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tetris-${{ runner.os }}
+          path: Tetris-${{ runner.os }}.*
+
+  publication:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: compilation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" Tetris-* --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" --generate-notes
