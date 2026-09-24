@@ -51,6 +51,9 @@ struct Enregistrement {
     bool complet = true; // faux si la partie a dépassé la taille maximale du journal
 };
 
+// Nombre de prochaines pièces connues à l'avance (et affichées)
+inline constexpr std::size_t NB_SUIVANTES = 5;
+
 // Règles du jeu, sans rendu ni SFML.
 // La grille ne contient que les blocs posés : la pièce active est gardée à part.
 class Jeu {
@@ -93,7 +96,9 @@ public:
     int PieceX() const { return active.x; }
     int PieceY() const { return active.y; }
     int NumeroPiece() const { return numeroPiece; }
-    TypePiece PieceSuivante() const { return suivante; }
+    // File des prochaines pièces, la plus proche en premier
+    std::span<const TypePiece, NB_SUIVANTES> Suivantes() const { return suivantes; }
+    TypePiece PieceSuivante() const { return suivantes.front(); }
     std::optional<TypePiece> PieceGardee() const { return garde; }
     bool GardeUtilisee() const { return gardeUtilisee; }
 
@@ -126,7 +131,7 @@ private:
     unsigned graine;
     Sac sac;
     EtatPiece active{};
-    TypePiece suivante{};
+    std::array<TypePiece, NB_SUIVANTES> suivantes{};
     std::optional<TypePiece> garde;
     bool gardeUtilisee = false;
 
@@ -168,6 +173,7 @@ private:
     bool AuSol() const;
     void ApresMouvement();
     void Apparaitre(TypePiece type);
+    TypePiece Avancer(); // retire la prochaine pièce de la file et la complète
     void Verrouiller();
     int EffacerLignes();
     void AjouterLignes(int nombre);

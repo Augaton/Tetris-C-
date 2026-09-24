@@ -21,8 +21,8 @@ Jeu::Jeu(unsigned graineInitiale, const Grille& depart, ParametresPartie paramet
     evenements.reserve(32);
     parametres.niveauDepart = std::clamp(parametres.niveauDepart, 0, mode::NIVEAU_DEPART_MAX);
     if (parametres.mode == Mode::Marathon) niveau = parametres.niveauDepart;
-    TypePiece premiere = sac.Tirer();
-    suivante = sac.Tirer();
+    const TypePiece premiere = sac.Tirer();
+    for (TypePiece& piece : suivantes) piece = sac.Tirer();
     Apparaitre(premiere);
 }
 
@@ -206,8 +206,7 @@ void Jeu::Garder() {
     if (garde) {
         Apparaitre(*garde);
     } else {
-        Apparaitre(suivante);
-        suivante = sac.Tirer();
+        Apparaitre(Avancer());
     }
     garde = courante;
 }
@@ -306,8 +305,14 @@ void Jeu::Verrouiller() {
     }
 
     gardeUtilisee = false;
-    Apparaitre(suivante);
-    suivante = sac.Tirer();
+    Apparaitre(Avancer());
+}
+
+TypePiece Jeu::Avancer() {
+    const TypePiece prochaine = suivantes.front();
+    std::shift_left(suivantes.begin(), suivantes.end(), 1);
+    suivantes.back() = sac.Tirer();
+    return prochaine;
 }
 
 int Jeu::EffacerLignes() {

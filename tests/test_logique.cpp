@@ -15,7 +15,9 @@
 #include <map>
 #include <random>
 #include <set>
+#include <span>
 #include <string>
+#include <vector>
 #include <string_view>
 #include <utility>
 
@@ -149,6 +151,21 @@ void TestGarde() {
     // De nouveau possible après verrouillage
     jeu.ChuteRapide();
     VERIFIER(!jeu.GardeUtilisee());
+}
+
+void TestFileSuivantes() {
+    // Une pièce posée : la première de la file apparaît et la file avance d'un cran
+    Jeu jeu(11);
+    const std::vector<TypePiece> avant(jeu.Suivantes().begin(), jeu.Suivantes().end());
+    jeu.ChuteRapide();
+    VERIFIER(jeu.PieceActive() == avant[0]);
+    VERIFIER(std::ranges::equal(jeu.Suivantes().first<NB_SUIVANTES - 1>(), std::span(avant).subspan(1)));
+
+    // Au départ, la pièce active et la file sortent du même sac de 7 : toutes différentes
+    const Jeu neuf(12);
+    std::set<TypePiece> vues{neuf.PieceActive()};
+    vues.insert(neuf.Suivantes().begin(), neuf.Suivantes().end());
+    VERIFIER(vues.size() == 1 + NB_SUIVANTES);
 }
 
 void TestGravite() {
@@ -509,6 +526,7 @@ int main() {
     TestLigneEtScore();
     TestDefaite();
     TestGarde();
+    TestFileSuivantes();
     TestGravite();
     TestRepetition();
     TestDelaiVerrouillage();
