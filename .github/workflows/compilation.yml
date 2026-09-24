@@ -1,5 +1,5 @@
 # Compile le jeu, lance les tests et prépare une archive prête à jouer sous Linux, Windows et macOS.
-# Une étiquette v* (git tag v1.0 && git push --tags) publie en plus les archives dans les Releases.
+# Une étiquette v* (git tag v1.0 && git push origin v1.0) publie en plus les archives dans les Releases.
 name: Compilation
 
 on:
@@ -16,7 +16,7 @@ jobs:
         systeme: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Sous Linux, SFML utilise FreeType et HarfBuzz du système ; Windows et macOS les compilent
       - name: Dépendances (Linux)
@@ -28,7 +28,7 @@ jobs:
 
       # SFML et ses dépendances, téléchargées et compilées par CMake, gardées d'une exécution à l'autre
       - name: Cache des dépendances
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build/_deps
           key: deps-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}
@@ -60,10 +60,11 @@ jobs:
             tar czf "Tetris-$RUNNER_OS.tar.gz" Tetris
           fi
 
-      - uses: actions/upload-artifact@v4
+      # Envoyée telle quelle (sans zip autour) : l'artefact est directement l'archive du jeu
+      - uses: actions/upload-artifact@v7
         with:
-          name: Tetris-${{ runner.os }}
           path: Tetris-${{ runner.os }}.*
+          archive: false
 
   publication:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -72,9 +73,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      # Archives gardées telles quelles : le zip de Windows ne doit pas être décompressé
+      - uses: actions/download-artifact@v8
         with:
+          pattern: Tetris-*
           merge-multiple: true
+          skip-decompress: true
 
       - name: Release
         env:
