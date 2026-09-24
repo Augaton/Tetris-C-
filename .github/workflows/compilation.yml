@@ -27,11 +27,17 @@ jobs:
           sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxi-dev libudev-dev \
             libgl1-mesa-dev libfreetype-dev libharfbuzz-dev
 
-      # Un compilateur mis à jour avec l'image du runner invalide le cache
-      - name: Image du runner
-        id: image
+      # Clé du cache : système et version du compilateur (un compilateur mis à jour repart de zéro)
+      - name: Version du compilateur
+        id: compilateur
         shell: bash
-        run: echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            version=$("/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property catalog_productDisplayVersion)
+          else
+            version=$(c++ --version | head -n 1)
+          fi
+          echo "version=$ImageOS-$(echo "$version" | tr -cs 'A-Za-z0-9.\n' '-')" >> "$GITHUB_OUTPUT"
 
       # Dossier de build gardé d'une exécution à l'autre : SFML et ses dépendances ne sont ni
       # retéléchargées ni recompilées, seul le code du jeu l'est
@@ -39,8 +45,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: build
-          key: build-${{ runner.os }}-${{ steps.image.outputs.version }}-${{ hashFiles('CMakeLists.txt') }}
-          restore-keys: build-${{ runner.os }}-${{ steps.image.outputs.version }}-
+          key: build-${{ steps.compilateur.outputs.version }}-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: build-${{ steps.compilateur.outputs.version }}-
 
       - name: Configuration
         shell: bash
@@ -50,7 +56,9 @@ jobs:
           if [ "$RUNNER_OS" = Windows ]; then
             options+=(-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DSFML_USE_STATIC_STD_LIBS=ON)
           fi
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "${options[@]}"
+          # Cache inutilisable (compilateur déplacé...) : on repart d'un dossier vide
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "${options[@]}" ||
+            { rm -rf build && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "${options[@]}"; }
 
       - name: Compilation
         run: cmake --build build --config Release --parallel
