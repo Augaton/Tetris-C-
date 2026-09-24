@@ -95,7 +95,7 @@ Ils sont enregistrés dans `reglages.cfg` (modifiable à la main) et `classement
 
 - `src/` : la logique du jeu (`Jeu`, `Piece`, `Sac`, `Reglages`, `Classements`...) ne dépend pas de SFML ; l'interface (`Application`, `Menu`, `Rendu`, `Effets`...) s'appuie dessus.
 - `tests/` : tests de la logique, sans fenêtre.
-- `asset/` : images et police, copiées à côté de l'exécutable à la compilation.
+- `asset/` : la police, copiée à côté de l'exécutable à la compilation ; tout le reste (pièces, décors, logo) est dessiné par le code.
 
 ## Licences
 

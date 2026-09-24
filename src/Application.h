@@ -1,25 +1,20 @@
 #pragma once
 
 #include "Reglages.h"
+#include "Theme.h"
 
 #include <SFML/Graphics.hpp>
 #include <filesystem>
 #include <functional>
-
-// Couleurs de asset/FondPrincipal.png, pour prolonger le décor au-delà de l'image
-inline constexpr sf::Color COULEUR_FOND{35, 35, 35};
-inline constexpr sf::Color COULEUR_PANNEAU{22, 22, 22};
 
 // Fenêtre, ressources et réglages partagés par les menus et la partie
 class Application {
 public:
     sf::RenderWindow fenetre;
     Reglages reglages;
-    sf::Font police;
-    sf::Texture tuiles, fondJeu, logo, fondMenu;
-    sf::Texture tuilesDaltonien; // tuiles.png recolorée (palette Okabe-Ito)
+    sf::Font police; // seule ressource chargée : tout le reste est dessiné par le code
 
-    // Charge les ressources et les réglages puis ouvre la fenêtre. false si une ressource manque.
+    // Charge la police et les réglages puis ouvre la fenêtre. false si la police manque.
     bool Initialiser();
 
     void SauverReglages();

@@ -1,7 +1,6 @@
 #include "Application.h"
 
 #include "Constantes.h"
-#include "Palette.h"
 #include "Ressources.h"
 #include "Texte.h"
 #include "Touches.h"
@@ -18,31 +17,7 @@ constexpr float HAUTEUR_LOGIQUE = static_cast<float>(cst::FENETRE_HAUTEUR);
 } // namespace
 
 bool Application::Initialiser() {
-    if (!ressources::Charger(police, "LiberationSans-Regular.ttf") || !ressources::Charger(tuiles, "tiles.png") ||
-        !ressources::Charger(fondJeu, "FondPrincipal.png") || !ressources::Charger(logo, "Logo.png") ||
-        !ressources::Charger(fondMenu, "Fond.png"))
-        return false;
-
-    // Refuse des assets remplacés par des images trop petites ou démesurées
-    const unsigned maxTexture = sf::Texture::getMaximumSize();
-    const auto tailleValide = [&](const sf::Texture& t, unsigned minX, unsigned minY) {
-        return t.getSize().x >= minX && t.getSize().y >= minY && t.getSize().x <= maxTexture && t.getSize().y <= maxTexture;
-    };
-    if (!tailleValide(tuiles, 8 * cst::TUILE, cst::TUILE) || !tailleValide(fondJeu, cst::FENETRE_LARGEUR, cst::FENETRE_HAUTEUR) ||
-        !tailleValide(logo, 1, 1) || !tailleValide(fondMenu, 1, 1)) {
-        std::cerr << "Assets invalides : dimensions inattendues\n";
-        return false;
-    }
-
-    if (!tuilesDaltonien.loadFromImage(palette::Recolorer(tuiles.copyToImage(), cst::TUILE))) {
-        std::cerr << "Impossible de préparer la palette pour daltoniens\n";
-        return false;
-    }
-
-    // Lissage pour les grandes images mises à l'échelle ; pas pour les tuiles (bords nets, pas de débordement)
-    fondJeu.setSmooth(true);
-    logo.setSmooth(true);
-    fondMenu.setSmooth(true);
+    if (!ressources::Charger(police, "LiberationSans-Regular.ttf")) return false;
 
     cheminReglages = reglages::CheminFichier();
     reglages = reglages::Charger(cheminReglages, touches::ParDefaut(), touches::Code);
@@ -156,7 +131,7 @@ const sf::Texture& Application::Capturer(const std::function<void(sf::RenderTarg
         scene.setSmooth(true); // réduction propre avant le flou
     }
     scene.setView(fenetre.getView());
-    scene.clear(COULEUR_FOND);
+    scene.clear(theme::FOND_BAS);
     dessiner(scene);
     scene.display();
     return scene.getTexture();

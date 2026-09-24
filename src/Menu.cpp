@@ -1,6 +1,7 @@
 #include "Menu.h"
 
 #include "Constantes.h"
+#include "Decor.h"
 #include "Formes.h"
 #include "Palette.h"
 #include "Texte.h"
@@ -52,8 +53,19 @@ bool Dimensionner(sf::RenderTexture& texture, sf::Vector2u taille) {
 
 constexpr float CENTRE_X = static_cast<float>(cst::FENETRE_LARGEUR) / 2.f;
 constexpr float CENTRE_Y = static_cast<float>(cst::FENETRE_HAUTEUR) / 2.f;
-constexpr sf::Color JAUNE(255, 204, 0);
-constexpr sf::Color GRIS(170, 170, 170);
+constexpr sf::Color JAUNE = theme::OR;
+constexpr sf::Color GRIS = theme::DISCRET;
+
+sf::Color Attenuer(sf::Color couleur, float facteur) {
+    couleur.a = static_cast<std::uint8_t>(static_cast<float>(couleur.a) * std::clamp(facteur, 0.f, 1.f));
+    return couleur;
+}
+
+// Carte : fond sombre et fin liseré clair, comme les encadrés de l'écran de jeu
+void AjouterCarte(sf::VertexArray& sommets, sf::FloatRect zone, float opacite = 1.f) {
+    formes::AjouterRectangleArrondi(sommets, zone, 14.f, Attenuer(theme::PANNEAU, opacite));
+    formes::AjouterContourArrondi(sommets, zone, 14.f, 1.f, Attenuer(theme::BORD, opacite));
+}
 
 unsigned Taille(unsigned taille, float facteur) {
     return static_cast<unsigned>(std::lround(static_cast<float>(taille) * facteur));
@@ -65,7 +77,7 @@ struct StyleListe {
 };
 
 // Liste de boutons au style Tetris minimal : panneau sombre arrondi, surlignage qui glisse d'une
-// entrée à l'autre avec une mini-tuile de couleur, fondu à l'ouverture.
+// entrée à l'autre avec un mini-bloc de couleur, fondu à l'ouverture.
 // Flèches haut/bas pour choisir, Entrée/Espace/clic pour valider ; flèches gauche/droite,
 // clic droit ou molette pour modifier une valeur.
 // Chaque ligne garde son propre texte : la mise en page n'est refaite que si elle change.
@@ -78,7 +90,7 @@ public:
     Liste(Application& application, float hautListe, float ecart, unsigned tailleTexte, float largeurMax = 560.f,
           StyleListe apparence = {})
         : app(application), haut(hautListe), espacement(ecart), taille(tailleTexte), largeur(largeurMax), style(apparence) {
-        formes.resize(6 * 24 * 4);
+        formes.resize(1000);
         formes.clear();
     }
 
@@ -151,7 +163,7 @@ public:
                 l.texte.setString(l.chaine);
                 PlacerTexte(l.texte, tailleTexte, {0.f, 0.f}, echelle);
                 const float largeurLigne = l.texte.getGlobalBounds().size.x;
-                // Place réservée de chaque côté pour la mini-tuile du surlignage
+                // Place réservée de chaque côté pour le mini-bloc du surlignage
                 if (largeurLigne > largeur - 110.f)
                     PlacerTexte(l.texte, tailleTexte, {0.f, 0.f}, echelle, (largeur - 110.f) / largeurLigne);
                 l.echelleBase = l.texte.getScale().x;
@@ -179,23 +191,18 @@ public:
         formes.clear();
         if (style.panneau) {
             const float hauteurPanneau = espacement * static_cast<float>(lignes.size()) + 20.f;
-            formes::AjouterRectangleArrondi(formes, {{gauche, haut - espacement / 2.f - 10.f + glissement}, {largeurPanneau, hauteurPanneau}},
-                                            14.f, sf::Color(14, 14, 14, static_cast<std::uint8_t>(205.f * a)));
+            AjouterCarte(formes, {{gauche, haut - espacement / 2.f - 10.f + glissement}, {largeurPanneau, hauteurPanneau}}, a);
         }
         const float hauteurBarre = espacement - 8.f;
         const sf::FloatRect barre({gauche + 8.f, ySurlignage - hauteurBarre / 2.f + glissement}, {largeurPanneau - 16.f, hauteurBarre});
         formes::AjouterRectangleArrondi(formes, barre, hauteurBarre / 2.f,
                                         sf::Color(accent.r, accent.g, accent.b, static_cast<std::uint8_t>(48.f * a)));
-        app.fenetre.draw(formes);
 
-        // Mini-tuile du jeu devant l'entrée choisie
+        // Mini-bloc de la couleur de l'entrée choisie
         const float cote = std::min(14.f, hauteurBarre - 8.f);
-        tuile.setTexture(daltonien ? app.tuilesDaltonien : app.tuiles);
-        tuile.setTextureRect({{cst::TUILE * couleurTuile, 0}, {cst::TUILE, cst::TUILE}});
-        tuile.setScale({cote / cst::TUILE, cote / cst::TUILE});
-        tuile.setPosition({barre.position.x + hauteurBarre / 2.f - cote / 2.f + 2.f, ySurlignage - cote / 2.f + glissement});
-        tuile.setColor(sf::Color(255, 255, 255, static_cast<std::uint8_t>(255.f * a)));
-        app.fenetre.draw(tuile);
+        formes::AjouterMino(formes, {{barre.position.x + hauteurBarre / 2.f - cote / 2.f + 2.f, ySurlignage - cote / 2.f + glissement}, {cote, cote}},
+                            accent, sf::Color(255, 255, 255, static_cast<std::uint8_t>(255.f * a)));
+        app.fenetre.draw(formes);
 
         for (size_t i = 0; i < lignes.size(); i++) {
             Ligne& l = lignes[i];
@@ -231,7 +238,6 @@ private:
     float apparition = 0.f;   // 0 → 1 à l'ouverture
     sf::Clock horloge;
     sf::VertexArray formes{sf::PrimitiveType::Triangles};
-    sf::Sprite tuile{app.tuiles};
 
     sf::Vector2f Centre(int i) const { return {CENTRE_X, haut + espacement * static_cast<float>(i)}; }
 
@@ -279,6 +285,12 @@ int LimiteVoisine(int valeur, int delta, bool boucler) {
 
 sf::String OuiNon(bool valeur) {
     return valeur ? TrU("Oui", "On") : TrU("Non", "Off");
+}
+
+// Couleur associée à chaque mode : Marathon cyan, Sprint vert, Ultra orange, Zen violet
+sf::Color CouleurMode(Mode m, bool daltonien) {
+    constexpr std::array<int, NB_MODES> TUILES = {5, 3, 6, 1};
+    return palette::Tuile(TUILES[static_cast<size_t>(m)], daltonien);
 }
 
 sf::String NomMode(Mode m) {
@@ -416,15 +428,15 @@ void Menu::DessinerTitre(const sf::String& chaine, float y) {
     DessinerTexte(Majuscules(chaine), 32, y);
     texte.setLetterSpacing(1.f);
 
-    decor.clear();
+    formes.clear();
     constexpr std::array couleurs = {5, 4, 1, 3}; // cyan, jaune, violet, vert
     constexpr float cote = 7.f, pas = 11.f;
     for (size_t i = 0; i < couleurs.size(); i++) {
         const sf::Color c = palette::Tuile(couleurs[i], app.reglages.daltonien);
         const float x = CENTRE_X - 2.f * pas + pas * static_cast<float>(i) + (pas - cote) / 2.f;
-        formes::AjouterRectangleArrondi(decor, {{x, y + 24.f}, {cote, cote}}, 1.5f, c);
+        formes::AjouterRectangleArrondi(formes, {{x, y + 24.f}, {cote, cote}}, 1.5f, c);
     }
-    app.fenetre.draw(decor);
+    app.fenetre.draw(formes);
 }
 
 // Capture floutée de la partie assombrie d'un voile, pour que les menus restent lisibles par-dessus
@@ -454,33 +466,13 @@ void Menu::DessinerDansZone(const sf::Texture& texture) {
 Menu::Choix Menu::Principal(const Classements& classements, ParametresPartie& parametres) {
     Liste liste(app, 262.f, 48.f, 24, 420.f, {true});
 
-    // Fond qui défile vers le bas, répété pour couvrir toute la zone visible
-    sf::Sprite spriteFond(app.fondMenu);
+    // Fond animé (tétrominos qui tombent), partagé avec les sous-menus
+    Decor decor;
     sf::Clock horlogeFond;
-    float decalage = 0.f;
-    sf::RectangleShape voile; // assombrit le décor : les menus ressortent, style épuré
-    voile.setFillColor(sf::Color(8, 8, 8, 170));
     const Fond fond{[&] {
-        const sf::FloatRect zone = app.ZoneVisible();
-        const sf::Vector2f tailleTexture(app.fondMenu.getSize());
-        const float echelleFond = std::max(1.f, zone.size.x / tailleTexture.x);
-        const float hauteur = tailleTexture.y * echelleFond;
-
-        decalage = std::fmod(decalage + 18.f * horlogeFond.restart().asSeconds(), hauteur);
-        spriteFond.setScale({echelleFond, echelleFond});
-        const float x = CENTRE_X - tailleTexture.x * echelleFond / 2.f;
-        for (float y = zone.position.y + decalage - hauteur; y < zone.position.y + zone.size.y; y += hauteur) {
-            spriteFond.setPosition({x, y});
-            app.fenetre.draw(spriteFond);
-        }
-        voile.setSize(zone.size);
-        voile.setPosition(zone.position);
-        app.fenetre.draw(voile);
+        const float dt = std::min(horlogeFond.restart().asSeconds(), 0.1f); // pas de saut après une pause
+        decor.DessinerFond(app.fenetre, app.ZoneVisible(), dt, app.reglages.daltonien);
     }, true};
-
-    sf::Sprite spriteLogo(app.logo);
-    spriteLogo.setOrigin(spriteLogo.getLocalBounds().size / 2.f);
-    spriteLogo.setPosition({CENTRE_X, 100.f});
 
     const auto remplir = [&] {
         // Reconstruit chaque image : la langue peut changer depuis les options
@@ -509,9 +501,9 @@ Menu::Choix Menu::Principal(const Classements& classements, ParametresPartie& pa
 
         remplir();
 
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         fond.dessiner();
-        app.fenetre.draw(spriteLogo);
+        decor.DessinerLogo(app.fenetre, {CENTRE_X, 100.f}, app.reglages.daltonien);
         liste.Dessiner();
         const Mode dernier = app.reglages.mode;
         DessinerTexte(NomMode(dernier) + Utf8(" · ") + TexteRecord(dernier, classements.Premier(dernier)), 18, 492.f);
@@ -565,7 +557,7 @@ std::optional<ParametresPartie> Menu::ChoisirMode(const Fond& fond, const Classe
             {"Sans gravité ni défaite : jouez à votre rythme.", "No gravity, no game over: play at your own pace."},
         }};
 
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         fond.dessiner();
         DessinerTitre(TrU("Mode de jeu", "Game mode"), 80.f);
         liste.Dessiner();
@@ -582,7 +574,7 @@ std::optional<ParametresPartie> Menu::ChoisirMode(const Fond& fond, const Classe
 
 void Menu::AfficherClassements(const Fond& fond, const Classements& classements) {
     int onglet = static_cast<int>(app.reglages.mode);
-    constexpr std::array colonnes = {230.f, 370.f, 510.f, 660.f};
+    constexpr std::array colonnes = {215.f, 355.f, 490.f, 625.f};
 
     bool aJour = false;
     while (app.fenetre.isOpen()) {
@@ -611,34 +603,44 @@ void Menu::AfficherClassements(const Fond& fond, const Classements& classements)
         if (!app.fenetre.isOpen()) break;
 
         const Mode m = static_cast<Mode>(onglet);
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         fond.dessiner();
+
+        // Carte du tableau, onglet choisi en pastille de la couleur du mode, lignes alternées
+        const auto& table = classements.Table(m);
+        formes.clear();
+        AjouterCarte(formes, {{170.f, 126.f}, {560.f, 374.f}});
+        formes::AjouterRectangleArrondi(formes, {{CENTRE_X - 290.f + 150.f * static_cast<float>(onglet), 85.f}, {130.f, 30.f}},
+                                        15.f, Attenuer(CouleurMode(m, app.reglages.daltonien), 0.4f));
+        for (size_t i = 0; i < table.size(); i += 2)
+            formes::AjouterRectangleArrondi(formes, {{182.f, 168.f + 31.f * static_cast<float>(i)}, {536.f, 28.f}}, 8.f,
+                                            {255, 255, 255, 8});
+        app.fenetre.draw(formes);
         DessinerTitre(TrU("Classements", "Leaderboards"), 45.f);
 
         for (int i = 0; i < NB_MODES; i++)
-            DessinerTexte(NomMode(static_cast<Mode>(i)), 20, {CENTRE_X - 225.f + 150.f * static_cast<float>(i), 100.f},
-                          i == onglet ? JAUNE : GRIS, 140.f);
-        sf::RectangleShape souligne({110.f, 3.f});
-        souligne.setOrigin({55.f, 0.f});
-        souligne.setPosition({CENTRE_X - 225.f + 150.f * static_cast<float>(onglet), 116.f});
-        souligne.setFillColor(JAUNE);
-        app.fenetre.draw(souligne);
+            DessinerTexte(NomMode(static_cast<Mode>(i)), 18, {CENTRE_X - 225.f + 150.f * static_cast<float>(i), 100.f},
+                          i == onglet ? theme::TEXTE : GRIS, 120.f);
 
-        const std::array<sf::String, 4> entetes = {Utf8("#"), m == Mode::Sprint ? TrU("Temps", "Time") : Utf8("Score"),
-                                                   TrU("Lignes", "Lines"), Utf8("Date")};
-        for (size_t c = 0; c < entetes.size(); c++) DessinerTexte(entetes[c], 16, {colonnes[c], 145.f}, GRIS, 150.f);
+        const std::array<sf::String, 4> entetes = {Utf8("#"), m == Mode::Sprint ? TrU("TEMPS", "TIME") : Utf8("SCORE"),
+                                                   TrU("LIGNES", "LINES"), Utf8("DATE")};
+        texte.setLetterSpacing(2.2f);
+        for (size_t c = 0; c < entetes.size(); c++)
+            DessinerTexte(entetes[c], 12, {colonnes[c], 148.f}, theme::ETIQUETTE, 150.f);
+        texte.setLetterSpacing(1.f);
 
-        const auto& table = classements.Table(m);
         if (table.empty())
             DessinerTexte(TrU("Aucune partie classée pour l'instant", "No ranked game yet"), 20, 300.f, GRIS);
+        // Or, argent et bronze pour les trois premiers
+        constexpr std::array<sf::Color, 3> MEDAILLES = {JAUNE, sf::Color(205, 210, 225), sf::Color(215, 145, 80)};
         for (size_t i = 0; i < table.size(); i++) {
             const EntreeClassement& e = table[i];
-            const float y = 178.f + 31.f * static_cast<float>(i);
-            const sf::Color couleur = i == 0 ? JAUNE : sf::Color::White;
-            DessinerTexte(Utf8(std::to_string(i + 1)), 19, {colonnes[0], y}, couleur, 60.f);
-            DessinerTexte(Utf8(ValeurClassee(m, e)), 19, {colonnes[1], y}, couleur, 150.f);
-            DessinerTexte(Utf8(FormaterNombre(e.lignes)), 19, {colonnes[2], y}, couleur, 120.f);
-            DessinerTexte(Utf8(e.date.empty() ? "—" : e.date), 17, {colonnes[3], y}, GRIS, 180.f);
+            const float y = 182.f + 31.f * static_cast<float>(i);
+            const sf::Color rang = i < MEDAILLES.size() ? MEDAILLES[i] : GRIS;
+            DessinerTexte(Utf8(std::to_string(i + 1)), 18, {colonnes[0], y}, rang, 60.f);
+            DessinerTexte(Utf8(ValeurClassee(m, e)), 18, {colonnes[1], y}, i == 0 ? JAUNE : theme::TEXTE, 150.f);
+            DessinerTexte(Utf8(FormaterNombre(e.lignes)), 18, {colonnes[2], y}, theme::TEXTE, 120.f);
+            DessinerTexte(Utf8(e.date.empty() ? "—" : e.date), 15, {colonnes[3], y}, GRIS, 160.f);
         }
 
         DessinerTexte(TrU("←→ changer de mode · Échap retour", "←→ switch mode · Esc back"), 15, 520.f, GRIS);
@@ -684,7 +686,7 @@ void Menu::EcranReglages(const Fond& fond, const sf::String& titre, std::span<co
 
         remplir();
 
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         fond.dessiner();
         DessinerTitre(titre, 70.f);
         liste.Dessiner();
@@ -791,7 +793,7 @@ void Menu::Options(const Fond& fond) {
 
         remplir();
 
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         fond.dessiner();
         DessinerTitre(TrU("Options", "Options"), 80.f);
         liste.Dessiner();
@@ -892,7 +894,7 @@ void Menu::Commandes(const Fond& fond) {
 
         remplir();
 
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         fond.dessiner();
         DessinerTitre(TrU("Commandes", "Controls"), 36.f);
         DessinerTexte(enAttente ? TrU("Échap ou clic : annuler", "Esc or click: cancel")
@@ -928,7 +930,7 @@ bool Menu::ConfirmerSurFond(const Fond& fond, const std::string& question) {
         if (!app.fenetre.isOpen()) break;
 
         remplir();
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         fond.dessiner();
         DessinerTexte(Utf8(question), 34, 200.f);
         liste.Dessiner();
@@ -975,7 +977,7 @@ bool Menu::Pause(const sf::Texture& scene) {
         if (!app.fenetre.isOpen()) break;
 
         remplir();
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         fond.dessiner();
         DessinerTitre(Utf8("Pause"), 160.f);
         liste.Dessiner();
@@ -1003,7 +1005,7 @@ void Menu::CompteARebours(const sf::Texture& scene) {
         voile.setPosition(zone.position);
         voile.setFillColor(sf::Color(0, 0, 0, 110));
 
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         DessinerDansZone(scene);
         app.fenetre.draw(voile);
 
@@ -1089,31 +1091,42 @@ Menu::Choix Menu::FinDePartie(const sf::Texture& scene, const ResumePartie& resu
             couleurClassement = GRIS;
         }
 
+        // Statistiques en tuiles : petit titre en capitales, valeur en dessous
         const Statistiques& s = resume.stats;
         const float pps = resume.temps > 0.f ? static_cast<float>(s.pieces) / resume.temps : 0.f;
-        const std::array<sf::String, 8> statistiques = {
-            TrU("Lignes : ", "Lines: ") + Utf8(FormaterNombre(resume.lignes)),
-            m == Mode::Marathon ? TrU("Niveau : ", "Level: ") + Utf8(std::to_string(resume.niveau))
-                                : TrU("Mode : ", "Mode: ") + NomMode(m),
-            TrU("Durée : ", "Time: ") + Utf8(FormaterTemps(resume.temps)),
-            TrU("Pièces : ", "Pieces: ") + Utf8(FormaterNombre(s.pieces)),
-            TrU("Pièces par seconde : ", "Pieces per second: ") + Utf8(Decimal(pps)),
-            TrU("Simples : ", "Singles: ") + Utf8(std::to_string(s.lignesParType[0])) + TrU(" · Doubles : ", " · Doubles: ") +
-                Utf8(std::to_string(s.lignesParType[1])),
-            TrU("Triples : ", "Triples: ") + Utf8(std::to_string(s.lignesParType[2])) + TrU(" · Tetris : ", " · Tetris: ") +
-                Utf8(std::to_string(s.lignesParType[3])),
-            TrU("Meilleur combo : ×", "Best combo: ×") + Utf8(std::to_string(s.comboMax)),
-        };
+        const std::array<std::pair<sf::String, sf::String>, 8> statistiques = {{
+            {TrU("LIGNES", "LINES"), Utf8(FormaterNombre(resume.lignes))},
+            m == Mode::Marathon ? std::pair{TrU("NIVEAU", "LEVEL"), Utf8(std::to_string(resume.niveau))}
+                                : std::pair{Utf8("MODE"), NomMode(m)},
+            {TrU("DURÉE", "TIME"), Utf8(FormaterTemps(resume.temps))},
+            {TrU("PIÈCES", "PIECES"), Utf8(FormaterNombre(s.pieces))},
+            {TrU("PIÈCES / S", "PIECES / S"), Utf8(Decimal(pps))},
+            {TrU("SIMPLES · DOUBLES", "SINGLES · DOUBLES"),
+             Utf8(std::format("{} · {}", s.lignesParType[0], s.lignesParType[1]))},
+            {TrU("TRIPLES · TETRIS", "TRIPLES · TETRIS"), Utf8(std::format("{} · {}", s.lignesParType[2], s.lignesParType[3]))},
+            {TrU("MEILLEUR COMBO", "BEST COMBO"), Utf8(std::format("×{}", s.comboMax))},
+        }};
 
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         DessinerFondFlou();
+        const sf::FloatRect carte({150.f, 172.f}, {600.f, 148.f});
+        formes.clear();
+        AjouterCarte(formes, carte);
+        for (int i = 1; i < 4; i++) // séparations entre les colonnes
+            formes::AjouterRectangleArrondi(formes, {{carte.position.x + 150.f * static_cast<float>(i), 188.f}, {1.f, 116.f}}, 0.f,
+                                            theme::BORD);
+        app.fenetre.draw(formes);
+
         DessinerTitre(titre, 44.f);
         DessinerTexte(principal, 34, 108.f, resume.rang == 0 ? JAUNE : sf::Color::White);
         DessinerTexte(classement, 20, 146.f, couleurClassement);
         for (size_t i = 0; i < statistiques.size(); i++) {
-            const float x = i < 4 ? CENTRE_X - 170.f : CENTRE_X + 170.f;
-            const float y = 190.f + 32.f * static_cast<float>(i % 4);
-            DessinerTexte(statistiques[i], 17, {x, y}, sf::Color(225, 225, 225), 320.f);
+            const float x = carte.position.x + 75.f + 150.f * static_cast<float>(i % 4);
+            const float y = carte.position.y + 26.f + 74.f * static_cast<float>(i / 4);
+            texte.setLetterSpacing(1.8f);
+            DessinerTexte(statistiques[i].first, 11, {x, y}, theme::ETIQUETTE, 136.f);
+            texte.setLetterSpacing(1.f);
+            DessinerTexte(statistiques[i].second, 21, {x, y + 26.f}, theme::TEXTE, 136.f);
         }
         liste.Dessiner();
         AfficherImage(aJour);

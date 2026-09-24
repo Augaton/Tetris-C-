@@ -15,7 +15,7 @@ namespace piece {
 // Cases occupées dans la boîte de rotation (rotation 0 à 3, sens horaire, y vers le bas)
 Cases Forme(TypePiece type, int rotation);
 
-// Numéro de la tuile dans asset/tiles.png
+// Numéro de couleur de la pièce (voir palette::Tuile)
 int Couleur(TypePiece type);
 
 // Colonne de la boîte de rotation à l'apparition

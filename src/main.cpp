@@ -146,7 +146,7 @@ void RevoirPartie(Application& app, Menu& menu, Rendu& rendu, const Enregistreme
         }
         if (suivante >= journal.commandes.size()) reserve = 0.0;
 
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         rendu.Dessiner(app.fenetre, jeu, tempsJeu, app.Echelle(), app.reglages, effets);
 
         const sf::String etat = suivante >= journal.commandes.size()
@@ -282,7 +282,7 @@ Menu::Choix JouerPartie(Application& app, Menu& menu, Rendu& rendu, Classements&
         jeu.ViderEvenements();
         effets.MettreAJour(dt);
 
-        app.fenetre.clear(COULEUR_FOND);
+        app.fenetre.clear(theme::FOND_BAS);
         dessiner(app.fenetre);
         app.Afficher();
     }
@@ -340,7 +340,7 @@ int main() {
     }
 
     Menu menu(app);
-    Rendu rendu(app.tuiles, app.tuilesDaltonien, app.fondJeu, app.police);
+    Rendu rendu(app.police);
 
     ParametresPartie parametres{app.reglages.mode, app.reglages.niveauDepart};
     bool afficherMenu = true;

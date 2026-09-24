@@ -62,7 +62,13 @@ void PlacerTexte(sf::Text& texte, unsigned tailleLogique, sf::Vector2f centre, f
     const float facteur = zoom * static_cast<float>(tailleLogique) / static_cast<float>(tailleReelle);
     texte.setScale({facteur, facteur});
 
-    texte.setOrigin(texte.getLocalBounds().getCenter());
+    // Centré horizontalement sur ses glyphes, verticalement sur la hauteur des capitales : tous les textes d'une
+    // même taille partagent une ligne de base, avec ou sans accents ni jambages (SFML la place à `tailleReelle`)
+    const sf::FloatRect bornes = texte.getLocalBounds();
+    const bool gras = (texte.getStyle() & sf::Text::Bold) != 0;
+    const sf::FloatRect capitale = texte.getFont().getGlyph(U'H', tailleReelle, gras).bounds;
+    texte.setOrigin({bornes.position.x + bornes.size.x / 2.f,
+                     static_cast<float>(tailleReelle) + capitale.position.y + capitale.size.y / 2.f});
     texte.setPosition(centre);
 }
 

@@ -4,10 +4,10 @@
 
 namespace palette {
 
-// Couleur dominante d'une tuile (n° 1 à 7), normale ou adaptée aux daltonismes courants (Okabe-Ito)
+// Couleur d'une pièce (tuile n° 1 à 7), normale ou adaptée aux daltonismes courants (Okabe-Ito)
 sf::Color Tuile(int tuile, bool daltonien);
 
-// Recolore asset/tiles.png avec la palette Okabe-Ito en gardant le relief (reflets et ombres)
-sf::Image Recolorer(const sf::Image& tuiles, unsigned tailleTuile);
+// Couleur rapprochée de `cible` d'une fraction `t` (0 : inchangée, 1 : `cible`), opacité comprise
+sf::Color Melanger(sf::Color couleur, sf::Color cible, float t);
 
 } // namespace palette

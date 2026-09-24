@@ -16,17 +16,11 @@ inline constexpr int LIGNES_ZONE_LIMITE = 4; // lignes au-dessus de la ligne rou
 inline constexpr unsigned FENETRE_LARGEUR = 900;
 inline constexpr unsigned FENETRE_HAUTEUR = 540;
 
-// Taille d'une tuile dans asset/tiles.png
-inline constexpr int TUILE = 18;
+// Côté d'une case du plateau à l'écran (unités logiques)
+inline constexpr int TUILE = 22;
 
-// Disposition, calée sur asset/FondPrincipal.png
-inline constexpr Point PLATEAU = {360.f, 136.f};         // coin haut-gauche de la grille
-inline constexpr Point APERCU_SUIVANT = {734.5f, 132.5f}; // centre du cadre "Suivant"
-inline constexpr Point APERCU_GARDE = {158.5f, 195.f};    // centre du cadre "Gardé"
-inline constexpr Point TEXTE_SCORE = {738.5f, 282.f};
-inline constexpr Point TEXTE_LIGNES = {156.f, 345.f};
-inline constexpr Point TEXTE_NIVEAU = {156.f, 470.f};
-inline constexpr Point BADGE_COMBO = {450.f, 111.f}; // bande libre entre le titre et la grille
+// Coin haut-gauche de la grille : le plateau est centré dans la zone logique
+inline constexpr Point PLATEAU = {(FENETRE_LARGEUR - TUILE * LARGEUR) / 2.f, (FENETRE_HAUTEUR - TUILE * HAUTEUR) / 2.f};
 
 // Progression
 inline constexpr int LIGNES_PAR_NIVEAU = 10;

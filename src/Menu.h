@@ -67,7 +67,7 @@ private:
     bool shaderOk = false;
     sf::RenderTexture flouReduit, flouIntermediaire, fondFlou;
     sf::Text texte{app.police};
-    sf::VertexArray decor{sf::PrimitiveType::Triangles}; // petites formes des titres
+    sf::VertexArray formes{sf::PrimitiveType::Triangles}; // petites formes des titres et des cartes
     sf::Clock horlogeRepos; // depuis le dernier affichage d'un écran immobile
     manette::Traducteur traducteur;
     bool traduireManette = true; // désactivé pendant la saisie d'un bouton dans Commandes

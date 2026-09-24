@@ -7,7 +7,7 @@ namespace {
 struct Definition {
     int taille;  // côté de la boîte dans laquelle la pièce tourne
     Cases cases; // cases en rotation 0
-    int couleur; // n° de tuile dans asset/tiles.png
+    int couleur; // n° de couleur (voir palette::Tuile)
     int colonne; // colonne de la boîte à l'apparition
 };
 
