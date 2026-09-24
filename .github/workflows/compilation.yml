@@ -1,0 +1,35 @@
+# Compile le jeu et lance les tests sous Linux, Windows et macOS à chaque push
+name: Compilation
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  compilation:
+    name: ${{ matrix.systeme }}
+    runs-on: ${{ matrix.systeme }}
+    strategy:
+      fail-fast: false
+      matrix:
+        systeme: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # Sous Linux, SFML utilise FreeType et HarfBuzz du système ; Windows et macOS les compilent
+      - name: Dépendances (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxi-dev libudev-dev \
+            libgl1-mesa-dev libfreetype-dev libharfbuzz-dev
+
+      - name: Configuration
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compilation
+        run: cmake --build build --config Release --parallel
+
+      - name: Tests
+        run: ctest --test-dir build --build-config Release --output-on-failure

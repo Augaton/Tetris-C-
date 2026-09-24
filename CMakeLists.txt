@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.28...3.31) # 3.28 : minimum exigé par SFML 3.1
+# macOS 13.3 au moins : std::format des nombres à virgule (SFML 3.1 se contente de 13.0)
+set(CMAKE_OSX_DEPLOYMENT_TARGET 13.3 CACHE STRING "Version minimale de macOS")
 project(TetrisC LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
