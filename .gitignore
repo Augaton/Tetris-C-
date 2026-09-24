@@ -1,5 +1,3 @@
 .vscode/
-.Makefile.swp
-asset/blur.frag
-*.o
 build/
+*.swp
