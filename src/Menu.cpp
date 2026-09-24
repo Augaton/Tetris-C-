@@ -464,7 +464,7 @@ void Menu::DessinerDansZone(const sf::Texture& texture) {
 // ---------------------------------------------------------------------------------------------
 
 Menu::Choix Menu::Principal(const Classements& classements, ParametresPartie& parametres) {
-    Liste liste(app, 262.f, 48.f, 24, 420.f, {true});
+    Liste liste(app, 240.f, 48.f, 24, 420.f, {true});
 
     // Fond animé (tétrominos qui tombent), partagé avec les sous-menus
     Decor decor;
@@ -503,12 +503,12 @@ Menu::Choix Menu::Principal(const Classements& classements, ParametresPartie& pa
 
         app.fenetre.clear(theme::FOND_BAS);
         fond.dessiner();
-        decor.DessinerLogo(app.fenetre, {CENTRE_X, 100.f}, app.reglages.daltonien);
+        decor.DessinerLogo(app.fenetre, {CENTRE_X, 96.f}, app.reglages.daltonien);
         liste.Dessiner();
         const Mode dernier = app.reglages.mode;
-        DessinerTexte(NomMode(dernier) + Utf8(" · ") + TexteRecord(dernier, classements.Premier(dernier)), 18, 492.f);
+        DessinerTexte(NomMode(dernier) + Utf8(" · ") + TexteRecord(dernier, classements.Premier(dernier)), 18, 490.f);
         DessinerTexte(TrU("↑↓ choisir · Entrée valider · F11 plein écran", "↑↓ select · Enter confirm · F11 fullscreen"),
-                      14, 525.f, GRIS);
+                      14, 520.f, GRIS);
         app.Afficher();
     }
     return Choix::Quitter;
@@ -804,7 +804,7 @@ void Menu::Options(const Fond& fond) {
 }
 
 void Menu::Commandes(const Fond& fond) {
-    Liste liste(app, 122.f, 33.f, 17, 820.f);
+    Liste liste(app, 128.f, 33.f, 17, 820.f);
     Reglages& r = app.reglages;
     const int LIGNE_DEFAUT = NB_ACTIONS;
     const int LIGNE_RETOUR = NB_ACTIONS + 1;
